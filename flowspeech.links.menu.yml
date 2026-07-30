@@ -1,0 +1,5 @@
+flowspeech.settings:
+  title: 'FlowSpeech'
+  description: 'Configure the FlowSpeech text-to-speech provider.'
+  route_name: flowspeech.settings
+  parent: ai.admin_providers

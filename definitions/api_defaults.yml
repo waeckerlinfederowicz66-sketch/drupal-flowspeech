@@ -1,0 +1,18 @@
+text_to_speech:
+  input:
+    description: 'Text to synthesize with FlowSpeech.'
+    type: 'string'
+    required: true
+  authentication:
+    api_key:
+      description: 'FlowSpeech API key'
+      type: 'string'
+      default: ''
+      required: true
+  configuration:
+    voice:
+      label: 'Voice'
+      description: 'The FlowSpeech voice used to synthesize the text.'
+      type: 'string'
+      default: 'Kore'
+      required: true

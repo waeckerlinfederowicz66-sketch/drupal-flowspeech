@@ -1,0 +1,7 @@
+flowspeech.settings:
+  path: '/admin/config/ai/providers/flowspeech'
+  defaults:
+    _form: '\Drupal\flowspeech\Form\FlowSpeechSettingsForm'
+    _title: 'FlowSpeech settings'
+  requirements:
+    _permission: 'administer site configuration'

@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<ruleset name="FlowSpeech">
+  <description>Drupal coding standards for the FlowSpeech provider.</description>
+  <file>src</file>
+  <file>tests</file>
+  <arg name="extensions" value="php,module,inc,install,test,profile,theme"/>
+  <rule ref="Drupal"/>
+  <rule ref="DrupalPractice"/>
+</ruleset>

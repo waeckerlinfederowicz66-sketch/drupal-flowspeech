@@ -1,0 +1,10 @@
+name: FlowSpeech
+description: Provides a FlowSpeech text-to-speech provider for the AI module.
+package: AI Provider
+type: module
+core_version_requirement: ^10.2 || ^11
+configure: flowspeech.settings
+
+dependencies:
+  - ai:ai
+  - key:key

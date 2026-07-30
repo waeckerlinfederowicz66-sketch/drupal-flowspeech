@@ -1,0 +1,8 @@
+services:
+  flowspeech.api:
+    class: Drupal\flowspeech\FlowSpeechApiService
+    arguments:
+      - '@config.factory'
+      - '@http_client'
+      - '@key.repository'
+      - '@logger.factory'
