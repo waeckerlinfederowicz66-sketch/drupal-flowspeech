@@ -1,0 +1,37 @@
+{
+  "name": "flowspeech/full-site-fixture",
+  "description": "Disposable Drupal 11 integration fixture, never distributed.",
+  "type": "project",
+  "license": "GPL-2.0-or-later",
+  "repositories": [
+    {"type": "composer", "url": "https://packages.drupal.org/8"}
+  ],
+  "require": {
+    "php": ">=8.3",
+    "ext-gd": "*",
+    "ext-pdo_sqlite": "*",
+    "composer/installers": "^2.3",
+    "drupal/core-recommended": "11.4.11",
+    "drupal/core-composer-scaffold": "11.4.11",
+    "drupal/ai": "1.5.1",
+    "drupal/key": "1.22.0",
+    "drush/drush": "13.8.0"
+  },
+  "config": {
+    "allow-plugins": {
+      "composer/installers": true,
+      "drupal/core-composer-scaffold": true,
+      "php-http/discovery": false
+    },
+    "sort-packages": true
+  },
+  "extra": {
+    "drupal-scaffold": {"locations": {"web-root": "web/"}},
+    "installer-paths": {
+      "web/core": ["type:drupal-core"],
+      "web/modules/contrib/{$name}": ["type:drupal-module"],
+      "web/themes/contrib/{$name}": ["type:drupal-theme"],
+      "web/profiles/contrib/{$name}": ["type:drupal-profile"]
+    }
+  }
+}

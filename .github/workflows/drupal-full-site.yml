@@ -1,0 +1,50 @@
+name: Drupal Full Site
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/drupal-*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  full-site:
+    name: Drupal 11 / ${{ matrix.mode }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [fresh, upgrade]
+    env:
+      FLOWSPEECH_API_KEY: ''
+      COMPOSER_AUTH: '{}'
+      COMPOSER_NO_INTERACTION: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@d52fc211a0436f8839a587b3b5b8efddab4744ea # v2
+        with:
+          php-version: '8.4'
+          extensions: gd, pdo_sqlite, sqlite3, curl, openssl, mbstring, intl, dom, xml, fileinfo
+          tools: composer:2.10.3
+          coverage: none
+      - name: Install and exercise a real disposable site
+        run: node scripts/full-site.mjs "${{ matrix.mode }}"
+      - name: Preserve gate evidence (no database or settings.php)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: drupal11-full-site-${{ matrix.mode }}
+          path: |
+            .tools/full-site/${{ matrix.mode }}/logs/
+            .tools/full-site/${{ matrix.mode }}/runtime.json
+            .tools/full-site/${{ matrix.mode }}/commit.json
+            .tools/full-site/${{ matrix.mode }}/result.json
+            .tools/full-site/${{ matrix.mode }}/site/composer.lock
+          if-no-files-found: error
+          retention-days: 7

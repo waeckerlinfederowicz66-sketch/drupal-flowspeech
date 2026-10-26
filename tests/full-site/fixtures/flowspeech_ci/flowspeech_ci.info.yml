@@ -1,0 +1,5 @@
+name: FlowSpeech CI Transport
+type: module
+description: Test-only in-memory HTTP transport; never install on a real site.
+package: Testing
+core_version_requirement: ^11

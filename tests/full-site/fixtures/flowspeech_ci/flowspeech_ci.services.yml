@@ -1,0 +1,7 @@
+services:
+  flowspeech_ci.transport:
+    class: Drupal\flowspeech_ci\FixtureTransport
+  http_handler_stack:
+    class: GuzzleHttp\HandlerStack
+    factory: ['GuzzleHttp\HandlerStack', create]
+    arguments: ['@flowspeech_ci.transport']
