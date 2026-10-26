@@ -80,7 +80,11 @@ try {
 $typed = Drupal::service('config.typed')->createFromNameAndData('flowspeech.settings', Drupal::config('flowspeech.settings')->getRawData());
 $check($typed->get('timeout_seconds')->getDataDefinition()->getDataType() === 'integer', 'Installed configuration schema declares integer timeout');
 $result = ['mode' => $mode, 'phase' => $phase, 'drupal' => Drupal::VERSION,
+    'nonce' => getenv('FLOWSPEECH_SITE_NONCE'), 'commit' => getenv('FLOWSPEECH_SITE_COMMIT'),
+    'root' => realpath(Drupal::getContainer()->getParameter('app.root')),
     'assertions' => count($checks), 'checks' => $checks, 'network' => 'in-memory only', 'status' => 'passed'];
 $log = getenv('FLOWSPEECH_SITE_LOG');
 if (!$log || !is_dir($log)) throw new RuntimeException('Missing isolated log directory.');
-file_put_contents($log . '/smoke-' . $phase . '.json', json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+if (file_put_contents($log . '/smoke-' . $phase . '.json', json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL) === false) {
+    throw new RuntimeException('Cannot persist smoke evidence.');
+}

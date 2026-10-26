@@ -33,6 +33,8 @@ jobs:
           extensions: gd, pdo_sqlite, sqlite3, curl, openssl, mbstring, intl, dom, xml, fileinfo
           tools: composer:2.10.3
           coverage: none
+      - name: Test entrypoint and execution-evidence guards
+        run: node --test tests/full-site/evidence.test.mjs
       - name: Install and exercise a real disposable site
         run: node scripts/full-site.mjs "${{ matrix.mode }}"
       - name: Preserve gate evidence (no database or settings.php)

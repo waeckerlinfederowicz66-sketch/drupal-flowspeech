@@ -6,6 +6,15 @@ extensions; no platform requirement is ignored. Direct project versions are
 Drupal 11.4.11, AI 1.5.1, Key 1.22.0 and Drush 13.8.0. The resolved Composer
 lock is uploaded with each run for exact dependency provenance.
 
+Drush is executed as PHP using its real `vendor/drush/drush/drush.php` entrypoint,
+never the Composer shell launcher `vendor/bin/drush`. Both the PHP opening tag
+and actual Drush version output are checked. A zero command exit is insufficient:
+after installation, a separate full-bootstrap probe must confirm the database,
+Drupal tables, minimal profile and administrator. JSON evidence is bound to the
+current run nonce, commit, mode, site root and phase. Both smoke phases must
+contain the required checks before `full_site_executed` or `status: passed` is
+set. `site_bootstrapped` separately records the validated post-install probe.
+
 Two independent jobs install real minimal-profile sites with persistent SQLite:
 
 - `fresh`: install the candidate from its actual Git archive.
@@ -32,6 +41,7 @@ but synthesis does not use any network or paid API.
 ## Run
 
 ```sh
+node --test tests/full-site/evidence.test.mjs
 node scripts/full-site.mjs fresh
 node scripts/full-site.mjs upgrade
 ```

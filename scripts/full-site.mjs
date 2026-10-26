@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { assertPhpEntrypoint, assertDrushVersion, readEvidence, readSmokeEvidence } from './full-site-evidence.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const mode = process.argv[2];
@@ -15,6 +17,7 @@ fs.mkdirSync(logs, { recursive: true });
 const php = process.env.PHP_BINARY || 'php';
 const composer = process.env.COMPOSER_BINARY || 'composer';
 const env = { ...process.env, FLOWSPEECH_SITE_MODE: mode, FLOWSPEECH_SITE_LOG: logs,
+  FLOWSPEECH_SITE_ROOT: web, FLOWSPEECH_SITE_NONCE: randomUUID(),
   COMPOSER_HOME: path.join(state, 'composer-home'), COMPOSER_CACHE_DIR: path.join(state, 'composer-cache'),
   COMPOSER_AUTH: '{}', COMPOSER_NO_INTERACTION: '1', TMPDIR: path.join(state, 'tmp'),
   LC_ALL: 'C', COPYFILE_DISABLE: '1' };
@@ -23,7 +26,7 @@ fs.mkdirSync(env.TMPDIR, { recursive: true });
 let sequence = 0;
 function run(label, command, args, cwd = root, extraEnv = {}) {
   console.log('[' + mode + '] ' + label);
-  const result = spawnSync(command, args, { cwd, env: { ...env, ...extraEnv }, encoding: 'utf8',
+  const result = spawnSync(command, args, { cwd, env: { ...env, ...extraEnv, PWD: cwd }, encoding: 'utf8',
     timeout: 8 * 60 * 1000, maxBuffer: 32 * 1024 * 1024 });
   const output = (result.stdout || '') + (result.stderr || '');
   fs.writeFileSync(path.join(logs, String(++sequence).padStart(2, '0') + '-' + label + '.log'), output);
@@ -32,13 +35,16 @@ function run(label, command, args, cwd = root, extraEnv = {}) {
   return result.stdout || '';
 }
 const drush = (label, args, extraEnv = {}) => run(label, php,
-  [path.join(site, 'vendor/bin/drush'), '--root=' + web, '--uri=http://localhost', '--no-interaction', ...args], web, extraEnv);
+  [assertPhpEntrypoint(path.join(site, 'vendor/drush/drush/drush.php')),
+    '--root=' + web, '--uri=http://localhost', '--no-interaction', '--no-ansi', ...args], web, extraEnv);
 const resultFile = path.join(state, 'result.json');
-const report = { mode, status: 'pending', full_site_executed: false };
+const report = { mode, status: 'pending', site_bootstrapped: false, full_site_executed: false };
 try {
   const preflight = run('runtime-preflight', php, [path.join(root, 'tests/full-site/preflight.php')]);
   fs.writeFileSync(path.join(state, 'runtime.json'), preflight);
   const commit = run('candidate-commit', 'git', ['rev-parse', 'HEAD']).trim();
+  env.FLOWSPEECH_SITE_COMMIT = commit;
+  report.commit = commit;
   const legacy = '91145d2be61188a723b248d956916a810a627ea5';
   run('official-ancestry', 'git', ['merge-base', '--is-ancestor', legacy, commit]);
   fs.writeFileSync(path.join(state, 'commit.json'), JSON.stringify({ commit, legacy, mode }, null, 2) + '\n');
@@ -46,6 +52,10 @@ try {
   fs.copyFileSync(path.join(root, 'tests/full-site/project.composer.json'), path.join(site, 'composer.json'));
   run('composer-install', composer, ['install', '--no-interaction', '--prefer-dist', '--no-progress'], site);
   run('platform-requirements', composer, ['check-platform-reqs'], site);
+  const fixtureProject = JSON.parse(fs.readFileSync(path.join(site, 'composer.json'), 'utf8'));
+  assertDrushVersion(drush('verify-drush-entrypoint', ['--version']), fixtureProject.require['drush/drush']);
+  const identity = { mode, nonce: env.FLOWSPEECH_SITE_NONCE, commit, root: web,
+    drupal: fixtureProject.require['drupal/core-recommended'] };
   const custom = path.join(web, 'modules/custom');
   fs.mkdirSync(custom, { recursive: true });
   const modulePath = path.join(custom, 'flowspeech');
@@ -73,7 +83,10 @@ $settings['http_client_config']['headers']['Cookie'] = 'must-not-leak';
     '--db-url=sqlite://sites/default/files/.ht.sqlite?module=sqlite',
     '--account-name=ciadmin', '--account-pass=fixture-admin-not-secret',
     '--account-mail=ci@example.invalid', '--site-mail=ci@example.invalid', '--site-name=FlowSpeech CI']);
-  report.full_site_executed = true;
+  drush('verify-installed-bootstrap', ['php:script', path.join(root, 'tests/full-site/bootstrap.php')]);
+  report.bootstrap = readEvidence(path.join(logs, 'bootstrap.json'), { ...identity, phase: 'post-install' },
+    ['Real database query', 'Installed Drupal schema', 'Minimal install profile', 'Installed administrator']);
+  report.site_bootstrapped = true;
   drush('install-deny-network-fixture', ['pm:install', 'flowspeech_ci', '--yes']);
   drush('install-module-and-dependencies', ['pm:install', 'flowspeech', '--yes']);
   drush('seed-real-key-and-config', ['php:script', path.join(root, 'tests/full-site/seed.php')]);
@@ -85,9 +98,9 @@ $settings['http_client_config']['headers']['Cookie'] = 'must-not-leak';
   drush('initial-smoke', ['php:script', path.join(root, 'tests/full-site/smoke.php')], { FLOWSPEECH_SITE_PHASE: 'initial' });
   drush('cache-rebuild-after-form-save', ['cache:rebuild']);
   drush('persisted-smoke', ['php:script', path.join(root, 'tests/full-site/smoke.php')], { FLOWSPEECH_SITE_PHASE: 'persisted' });
+  report.phases = readSmokeEvidence(logs, identity);
+  report.full_site_executed = true;
   report.status = 'passed';
-  report.commit = commit;
-  report.phases = ['initial', 'persisted'].map((phase) => JSON.parse(fs.readFileSync(path.join(logs, 'smoke-' + phase + '.json'), 'utf8')));
 } catch (error) {
   report.status = 'failed';
   report.error = error.message;
