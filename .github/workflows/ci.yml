@@ -21,3 +21,4 @@ jobs:
       - name: Lint PHP
         run: find src tests -name '*.php' -print0 | xargs -0 -n1 php -l
       - run: vendor/bin/phpunit
+      - run: php tests/provider.php

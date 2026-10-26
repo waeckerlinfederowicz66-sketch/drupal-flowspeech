@@ -1,0 +1,17 @@
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/.github export-ignore
+/.gitlab-ci.yml export-ignore
+/tests export-ignore
+/scripts export-ignore
+/reports export-ignore
+/RELEASE_REPORT.md export-ignore
+/*HANDOFF*.md export-ignore
+/phpunit.xml.dist export-ignore
+/phpcs.xml.dist export-ignore
+/composer.lock export-ignore
+/vendor export-ignore
+/dist export-ignore
+/.tools export-ignore
+/.phpunit* export-ignore
+/.env* export-ignore

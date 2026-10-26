@@ -149,6 +149,14 @@ final class FlowSpeechProvider extends AiProviderClientBase implements Container
    * {@inheritdoc}
    */
   public function textToSpeech(string|TextToSpeechInput $input, string $model_id, array $tags = []): TextToSpeechOutput {
+    if ($model_id !== self::MODEL_ID) {
+      throw new AiBadRequestException('Unsupported FlowSpeech model selection.');
+    }
+    foreach (['model', 'source', 'speed', 'format', 'speakers'] as $unsupported) {
+      if (array_key_exists($unsupported, $this->configuration)) {
+        throw new AiBadRequestException('Unsupported FlowSpeech option: ' . $unsupported);
+      }
+    }
     $text = $input instanceof TextToSpeechInput ? $input->getText() : $input;
     $voice = isset($this->configuration['voice'])
       ? (string) $this->configuration['voice']

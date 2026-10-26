@@ -1,6 +1,6 @@
 {
   "name": "drupal/flowspeech",
-  "description": "Provides FlowSpeech text-to-speech through the Drupal AI module.",
+  "description": "Provides FlowSpeech public API v1 text-to-speech jobs through the Drupal AI module.",
   "type": "drupal-module",
   "license": "GPL-2.0-or-later",
   "homepage": "https://flowspeech.io/",
@@ -18,6 +18,7 @@
   ],
   "require": {
     "php": ">=8.1",
+    "ext-json": "*",
     "drupal/ai": "^1.0.5",
     "drupal/key": "^1.18"
   },
@@ -33,6 +34,12 @@
     "psr-4": {
       "Drupal\\Tests\\flowspeech\\Unit\\": "tests/src/Unit/"
     }
+  },
+  "scripts": {
+    "test:contract": "php tests/provider.php"
+  },
+  "archive": {
+    "exclude": ["/tests", "/scripts", "/dist", "/.tools", "/.github", "/RELEASE_REPORT.md", "/phpunit.xml.dist"]
   },
   "config": {
     "allow-plugins": {

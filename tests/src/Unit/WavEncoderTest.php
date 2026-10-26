@@ -5,19 +5,19 @@ declare(strict_types=1);
 namespace Drupal\Tests\flowspeech\Unit;
 
 use Drupal\flowspeech\Audio\WavEncoder;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Tests PCM to WAV encoding.
  *
- * @coversDefaultClass \Drupal\flowspeech\Audio\WavEncoder
  */
+#[CoversClass(WavEncoder::class)]
 final class WavEncoderTest extends TestCase {
 
   /**
    * Verifies the WAV header and data length.
    *
-   * @covers ::encode
    */
   public function testEncode(): void {
     $pcm = "\x01\x02\x03\x04";
@@ -34,7 +34,6 @@ final class WavEncoderTest extends TestCase {
   /**
    * Verifies invalid bit depths are rejected.
    *
-   * @covers ::encode
    */
   public function testInvalidBitDepth(): void {
     $this->expectException(\InvalidArgumentException::class);
