@@ -21,6 +21,7 @@
     "allow-plugins": {
       "composer/installers": true,
       "drupal/core-composer-scaffold": true,
+      "symfony/runtime": true,
       "php-http/discovery": false
     },
     "sort-packages": true

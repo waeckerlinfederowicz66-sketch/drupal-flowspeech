@@ -37,9 +37,11 @@ final class FixtureTransportTest extends TestCase {
 
     public function testUnexpectedNetworkHasNoFallback(): void {
         $transport = new FixtureTransport();
+        $http = new Client(['handler' => HandlerStack::create($transport),
+            'headers' => ['Authorization' => 'must-not-leak', 'Cookie' => 'must-not-leak']]);
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('External HTTP is disabled');
-        $transport(new Request('GET', 'https://blocked.invalid/'), []);
+        $http->get('https://blocked.invalid/', ['headers' => ['Cookie' => '', 'Authorization' => '']]);
     }
 
     public function testStorageRejectsAuthorization(): void {
