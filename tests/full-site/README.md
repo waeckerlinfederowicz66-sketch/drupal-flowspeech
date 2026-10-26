@@ -67,9 +67,13 @@ php .tools/vendor/bin/phpunit --no-configuration \
   --bootstrap tests/framework-bootstrap.php tests/full-site/FixtureTransportTest.php
 ```
 
-Full-site status is **pending** until both actual GitHub jobs pass and the
-uploaded results identify the reviewed candidate commit. Failures must be fixed
-and rerun; a prepared workflow or local fixture unit test is not app execution.
+The initial full-site gate passed for both modes in
+[run 40306545344](https://github.com/waeckerlinfederowicz66-sketch/drupal-flowspeech/actions/runs/40306545344)
+at commit `ffbf7937b01e068c4ed586543579497e2a26e471`. Each mode passed 4 bootstrap,
+33 initial and 31 persistence checks. Changes still require rerunning both jobs
+and matching the uploaded result identity to the reviewed commit. Failures must
+be fixed and rerun; a prepared workflow or local fixture unit test alone is not
+app execution. Drupal 12 and live production generation remain untested.
 
 References: [setup-php](https://github.com/shivammathur/setup-php),
 [Drush site:install](https://www.drush.org/13.x/commands/site_install/),
