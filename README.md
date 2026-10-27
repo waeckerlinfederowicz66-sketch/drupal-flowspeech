@@ -1,5 +1,9 @@
 # FlowSpeech for Drupal
 
+## Unreleased Security Follow-up
+
+The isolated production cURL transport retains HTTP status and Retry-After even when the response body is truncated or times out. Permanent HTTP failures do not retry; transient retries respect the server cooldown and total deadline. This also applies to the bundled shared API client.
+
 FlowSpeech 1.1.0 integrates public API v1 with Drupal AI.
 It preserves textToSpeech(text, voice), returning binary WAV, mime_type and
 response. response is now the completed v1 job, including usage, not a legacy
@@ -12,6 +16,9 @@ or API base64. The old WavEncoder utility remains available for compatibility.
   required by Drupal). The upstream Drupal 12 declaration is retained, but full
   Drupal 12 installation and kernel compatibility remain unverified.
 - Drupal AI ^1.0.5 and Key ^1.18, with a working Guzzle HTTPS transport.
+- The unreleased timeout fix requires PHP ext-curl with curl_exec enabled.
+  Composer and Drupal's installation/status requirements check this dependency.
+  These local changes are not included in the published 1.1.0 package.
 - An active paid FlowSpeech Basic, Pro or Scale subscription and developer API
   key from [API settings](https://flowspeech.io/settings/apikeys). Trials and
   browser-login/plugin-scoped tokens do not provide public API access.
@@ -44,6 +51,15 @@ quota.available, not remaining, for new work. getVoices() returns voices.
 textToSpeech(text, voice, requestId=null) submits, polls and downloads under one
 deadline. Persist a UUID before submission when you need reliable recovery.
 Exceptions expose requestId, jobId, errorCode, retryable and traceId.
+The unreleased privacy fix replaces remote HTTP/terminal messages with fixed
+diagnostics and only retains 1-128 character ASCII letter/digit/underscore/hyphen
+code and trace tokens that do not contain the client's API key. Invalid trace
+tokens become null. Job error objects retain a safe message and boolean
+retryable; error: null remains null. Recovery IDs are preserved.
+Drupal AI exception strings retain stack frame names but omit call arguments,
+including signed download URLs. Do not dump raw traces or client objects;
+use zend.exception_ignore_args=1 for PHP diagnostic trace collection.
+These privacy changes are not included in published 1.1.0.
 Use the raw v1 client for queued workflows and long recordings:
 
 ```php
@@ -64,14 +80,23 @@ does not indicate generation success. Failed/cancelled jobs stop; deleted
 results are explicitly reported as result_deleted.
 
 WAV downloads are capped at 32 MiB. Both API and storage redirects are refused.
-A fresh Guzzle client shares only Drupal's handler, not its default headers,
-auth or cookies. Keys are never sent to storage hosts. Logs do not record
+A fresh Guzzle client uses an isolated cURL handler, not Drupal's configurable
+handler stack, default headers, auth, cookies or environment proxy. A site-level
+StreamHandler override cannot weaken its total HTTP timeout. Keys are never sent
+to storage hosts. Logs do not record
 scripts, credentials or result URLs. Result links are link-accessible, so
 treat them as private information. Timeout stops waiting, not the server job.
 
 For long jobs use a Drupal queue/CLI worker with an appropriate execution limit,
 or the nonblocking job methods. PHP/web-server timeouts may terminate a blocking
 Drupal AI call before the configured client deadline.
+
+The optional fifth FlowSpeechApiService constructor argument is an explicit
+isolated ClientInterface override for offline transport tests. Its handler must
+implement the transport contract itself; the cURL wall-clock guarantee does not
+apply to a deliberately injected custom/mock handler. Normal Drupal service
+configuration does not set this argument. TLS verification and response-size
+limits remain enabled on both paths.
 
 ## Development
 

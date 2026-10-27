@@ -1,0 +1,20 @@
+<?php
+
+use Drupal\Core\Extension\Requirement\RequirementSeverity;
+
+/**
+ * Implements hook_requirements().
+ */
+function flowspeech_requirements($phase): array {
+  $available = function_exists('curl_exec');
+  // Drupal 10 uses integer severities; newer cores provide the enum.
+  $severity = class_exists(RequirementSeverity::class)
+    ? ($available ? RequirementSeverity::OK : RequirementSeverity::Error)
+    : ($available ? 0 : 2);
+  return ['flowspeech_curl' => [
+    'title' => t('FlowSpeech cURL transport'),
+    'value' => $available ? t('Available') : t('Unavailable'),
+    'severity' => $severity,
+    'description' => t('FlowSpeech requires PHP ext-curl with curl_exec enabled to enforce a total HTTP timeout, including slow response headers.'),
+  ]];
+}

@@ -8,7 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const version = fs.readFileSync(path.join(root, 'VERSION'), 'utf8').trim();
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid release version');
 const slug = 'flowspeech';
-const allow = ["src","composer.json","README.md","CHANGELOG.md","LICENSE.txt","SDK-LICENSE.txt","VERSION","config","definitions","flowspeech.info.yml","flowspeech.links.menu.yml","flowspeech.routing.yml","flowspeech.services.yml"];
+const allow = ["src","composer.json","README.md","CHANGELOG.md","LICENSE.txt","SDK-LICENSE.txt","VERSION","config","definitions","flowspeech.info.yml","flowspeech.install","flowspeech.links.menu.yml","flowspeech.routing.yml","flowspeech.services.yml"];
 const dist = path.join(root, 'dist');
 const archiveEnv = { ...process.env, LC_ALL: 'C', COPYFILE_DISABLE: '1' };
 const stage = path.join(dist, 'stage', slug);

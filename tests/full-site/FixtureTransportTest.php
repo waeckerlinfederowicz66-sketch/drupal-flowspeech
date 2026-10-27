@@ -13,9 +13,23 @@ use GuzzleHttp\Psr7\Request;
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/fixtures/flowspeech_ci/src/FixtureTransport.php';
+require_once __DIR__ . '/fixtures/flowspeech_ci/src/FlowspeechCiServiceProvider.php';
 
 /** Validates the fixture locally; this is NOT a full-site test. */
 final class FixtureTransportTest extends TestCase {
+    public function testSiteFixtureExplicitlyInjectsOnlyTheNewTransportSeam(): void {
+        $container = new \Drupal\Core\DependencyInjection\ContainerBuilder();
+        $provider = new \Drupal\flowspeech_ci\FlowspeechCiServiceProvider();
+        $definition = new \Symfony\Component\DependencyInjection\Definition(FlowSpeechApiService::class, [null, null, null, null]);
+        $container->setDefinition('flowspeech.api', $definition);
+        $provider->alter($container);
+        self::assertSame('http_client', (string) $definition->getArgument(4));
+        $legacy = new \Symfony\Component\DependencyInjection\Definition(stdClass::class, []);
+        $container->setDefinition('flowspeech.api', $legacy);
+        $provider->alter($container);
+        self::assertSame([], $legacy->getArguments(), 'Legacy constructors are not given an unknown argument.');
+    }
+
     public function testProductionAdapterUsesFixtureAndIsolatesCredentials(): void {
         $transport = new FixtureTransport();
         $http = new Client(['handler' => HandlerStack::create($transport),
@@ -25,7 +39,7 @@ final class FixtureTransportTest extends TestCase {
         $config = $this->createMock(ConfigFactoryInterface::class);
         $config->method('get')->willReturn($settings);
         $service = new FlowSpeechApiService($config, $http, $this->createMock(KeyRepositoryInterface::class),
-            $this->createMock(LoggerChannelFactoryInterface::class));
+            $this->createMock(LoggerChannelFactoryInterface::class), $http);
         $service->setApiKey(FixtureTransport::KEY);
         self::assertSame('active', $service->getQuota()['subscription']['status']);
         self::assertSame('Kore', $service->getVoices()['voices'][0]['name']);

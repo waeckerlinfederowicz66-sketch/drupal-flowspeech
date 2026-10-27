@@ -26,6 +26,7 @@ namespace GuzzleHttp {
             if (is_callable($response)) { $response = $response(compact('method', 'url', 'options')); }
             if ($response instanceof \Throwable) { throw $response; }
             if ($response === null) { throw new \RuntimeException('Unexpected request'); }
+            $options['sink']->write($response['body']);
             return new class($response) {
                 public function __construct(private array $response) {}
                 public function getStatusCode() { return $this->response['status']; }
@@ -34,6 +35,8 @@ namespace GuzzleHttp {
                 public function getBody() {
                     return new class($this->response['body']) {
                         public function __construct(private string $body) {}
+                        public function rewind() {}
+                        public function read($length) { return substr($this->body, 0, $length); }
                         public function detach() {
                             $stream = fopen('php://temp', 'r+');
                             fwrite($stream, $this->body);
@@ -47,6 +50,28 @@ namespace GuzzleHttp {
     }
 }
 namespace GuzzleHttp\Exception { class TransferException extends \RuntimeException {} }
+namespace GuzzleHttp\Psr7 {
+    final class Utils {
+        public static function streamFor() {
+            return new class {
+                private string $body = '';
+                public function write($chunk) { $this->body .= $chunk; return strlen($chunk); }
+                public function getSize() { return strlen($this->body); }
+                public function __toString() { return $this->body; }
+                public function close() { $this->body = ''; }
+            };
+        }
+    }
+    final class FnStream {
+        public static function decorate($stream, $methods) {
+            return new class($stream, $methods) {
+                public function __construct(private $stream, private $methods) {}
+                public function write($chunk) { return ($this->methods['write'])($chunk); }
+                public function close() { $this->stream->close(); }
+            };
+        }
+    }
+}
 namespace {
     require __DIR__ . '/contract.php';
     require_once $sourceRoot . '/src/FlowSpeechApiService.php';
@@ -67,7 +92,7 @@ namespace {
         }
     };
     $logger = new class implements \Drupal\Core\Logger\LoggerChannelFactoryInterface {};
-    $service = new \Drupal\flowspeech\FlowSpeechApiService($config, $http, $keys, $logger);
+    $service = new \Drupal\flowspeech\FlowSpeechApiService($config, $http, $keys, $logger, $http);
     \GuzzleHttp\Client::$queue = [response(job()), response(wav())];
     $result = $service->textToSpeech('Hello', 'Kore', REQUEST_ID);
     check($result['binary'] === wav() && $result['mime_type'] === 'audio/wav', 'Drupal returns downloaded WAV');
@@ -79,11 +104,12 @@ namespace {
     foreach ($requests as $request) {
         check($request['options']['allow_redirects'] === false, 'Drupal redirects off');
         check($request['options']['auth'] === null && $request['options']['cookies'] === false, 'Drupal defaults disabled');
-        check($request['options']['stream'] === true && $request['options']['verify'] === true, 'Drupal bounded streaming with TLS');
+        check($request['options']['stream'] === false && $request['options']['verify'] === true &&
+            isset($request['options']['sink']), 'Drupal bounded cURL sink with TLS');
         check($request['options']['timeout'] > 0 && $request['options']['timeout'] <= 30, 'Drupal timeout');
     }
     foreach (\GuzzleHttp\Client::$configs as $config) {
-        check($config === ['handler' => 'fixture-handler'], 'Fresh client inherits only handler');
+        check($config === ['handler' => 'fixture-handler', 'proxy' => []], 'Explicit mock handler, no default credentials/proxy');
     }
     \GuzzleHttp\Client::$queue = [
         response(['quota' => ['available' => 5], 'subscription' => null, 'limits' => []]),

@@ -27,9 +27,11 @@ namespace Drupal\Core\Plugin { interface ContainerFactoryPluginInterface {} }
 namespace Drupal\Core\StringTranslation { class TranslatableMarkup {} }
 namespace {
     require __DIR__ . '/adapter.php';
+    require $sourceRoot . '/src/Exception/FlowSpeechProviderException.php';
     require $sourceRoot . '/src/Plugin/AiProvider/FlowSpeechProvider.php';
     require $sourceRoot . '/src/Audio/WavEncoder.php';
     $initial = $checks;
+    $service->setApiKey('fixture-only');
     $provider = new \Drupal\flowspeech\Plugin\AiProvider\FlowSpeechProvider();
     $property = new ReflectionProperty($provider, 'client');
     $property->setValue($provider, $service);
@@ -58,6 +60,43 @@ namespace {
         check($error->getPrevious() instanceof \Drupal\flowspeech\Api\FlowSpeechException, 'Provider retains structured recovery cause');
         check($error->getPrevious()->jobId === JOB_ID, 'Provider cause exposes job ID');
     }
+    $privateUrl = 'https://private.example.test/audio.wav?signature=private-fixture';
+    foreach (['fixture-only', $privateUrl] as $unsafe) {
+        \GuzzleHttp\Client::$queue = [response(['error' => [
+            'code' => $unsafe, 'message' => $unsafe, 'retryable' => false,
+        ], 'traceId' => $unsafe], 403)];
+        try { $provider->textToSpeech('Hello', 'flowspeech-tts'); throw new RuntimeException('Expected HTTP failure'); }
+        catch (\Drupal\ai\Exception\AiBadRequestException $error) {
+            $cause = $error->getPrevious();
+            check($cause instanceof \Drupal\flowspeech\Api\FlowSpeechException, 'Safe provider cause remains structured');
+            check($error->getMessage() === 'FlowSpeech API returned HTTP 403.', 'Provider HTTP message is local');
+            check($cause->errorCode === 'http_error' && $cause->traceId === null && $cause->getCode() === 403, 'Provider filters unsafe code and trace');
+            check($cause->requestId !== null && $cause->jobId === null, 'Provider preserves submit recovery ID');
+            check(!str_contains((string) $error, $unsafe), 'Provider exception string excludes reflected value');
+        }
+    }
+    \GuzzleHttp\Client::$queue = [static fn($request) => response(job('failed', [
+        'requestId' => $request['options']['headers']['Idempotency-Key'],
+        'error' => ['code' => 'fixture-only', 'message' => $privateUrl, 'retryable' => false],
+        'traceId' => 'fixture-only',
+    ]))];
+    try { $provider->textToSpeech('Hello', 'flowspeech-tts'); throw new RuntimeException('Expected terminal failure'); }
+    catch (\Drupal\ai\Exception\AiBadRequestException $error) {
+        check($error->getMessage() === 'FlowSpeech job failed.' && $error->getPrevious()->errorCode === 'failed', 'Provider terminal error is local');
+        check($error->getPrevious()->jobId === JOB_ID && $error->getPrevious()->requestId !== null, 'Terminal wrapper preserves recovery IDs');
+        check(!str_contains((string) $error, 'fixture-only') && !str_contains((string) $error, $privateUrl), 'Terminal exception chain is safe');
+    }
+    $previousMax = ini_set('zend.exception_string_param_max_len', '4096');
+    \GuzzleHttp\Client::$queue = [static fn($request) => response(job('success', [
+        'requestId' => $request['options']['headers']['Idempotency-Key'],
+        'result' => array_replace(job()['result'], ['url' => $privateUrl]),
+    ])), response(['error' => ['message' => $privateUrl]], 403)];
+    try { $provider->textToSpeech('Hello', 'flowspeech-tts'); throw new RuntimeException('Expected storage failure'); }
+    catch (\Drupal\ai\Exception\AiBadRequestException $error) {
+        check(!str_contains((string) $error, $privateUrl), 'Outer provider exception does not re-render private URL arguments');
+        check(str_contains((string) $error, 'Stack trace:') && str_contains((string) $error, 'FlowSpeechClient->send()'), 'Safe chain preserves useful frame names');
+        check($error->getPrevious()->jobId === JOB_ID, 'Download failure remains recoverable');
+    } finally { ini_set('zend.exception_string_param_max_len', $previousMax); }
     $pcm = "\x01\x02\x03\x04";
     $encoded = \Drupal\flowspeech\Audio\WavEncoder::encode($pcm, 24000, 1, 16);
     check(substr($encoded, 0, 4) === 'RIFF' && substr($encoded, 8, 4) === 'WAVE', 'Legacy WavEncoder remains compatible');

@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- Stop reflecting remote error messages, unsafe code/trace tokens and nested
+  error metadata. Preserve null errors, safe error DTO fields and recovery IDs.
+- Keep the Drupal AI exception type and structured cause, but omit call
+  arguments from exception strings so signed download URLs are not rendered.
+- Verify HTTP/terminal/storage failures through real Guzzle TLS and Drupal AI
+  exception classes with virtual credentials only; no production API calls.
+
+- Require ext-curl in Composer and Drupal installation/status requirements.
+  Use an isolated Guzzle cURL handler instead of a site-customizable handler,
+  retaining an explicit offline mock injection point. Use a
+  bounded response sink, so slow headers and body share one hard timeout.
+- Add verified loopback TLS regressions for slow headers/body, recovery IDs
+  after timeout, and transport reuse. These changes are not in published 1.1.0.
+
 ## 1.1.0 - 2026-10-26
 
 - Verify real Drupal 11.4.11 fresh installation and upgrade from official 1.0.0:

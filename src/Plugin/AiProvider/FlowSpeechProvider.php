@@ -165,8 +165,11 @@ final class FlowSpeechProvider extends AiProviderClientBase implements Container
     try {
       $result = $this->client->textToSpeech($text, $voice);
     }
+    catch (\Drupal\flowspeech\Api\FlowSpeechException $exception) {
+      throw new \Drupal\flowspeech\Exception\FlowSpeechProviderException($exception->getMessage(), 0, $exception);
+    }
     catch (\Throwable $exception) {
-      throw new AiBadRequestException($exception->getMessage(), 0, $exception);
+      throw new \Drupal\flowspeech\Exception\FlowSpeechProviderException('FlowSpeech request failed.');
     }
 
     $filename = sprintf(
