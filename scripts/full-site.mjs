@@ -45,7 +45,7 @@ try {
   const commit = run('candidate-commit', 'git', ['rev-parse', 'HEAD']).trim();
   env.FLOWSPEECH_SITE_COMMIT = commit;
   report.commit = commit;
-  const legacy = '91145d2be61188a723b248d956916a810a627ea5';
+  const legacy = '8c803c609d18a182285628cf0d3dfcc3ef5e3c43';
   run('official-ancestry', 'git', ['merge-base', '--is-ancestor', legacy, commit]);
   fs.writeFileSync(path.join(state, 'commit.json'), JSON.stringify({ commit, legacy, mode }, null, 2) + '\n');
   fs.mkdirSync(site);
