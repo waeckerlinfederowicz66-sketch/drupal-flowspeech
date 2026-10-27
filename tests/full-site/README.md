@@ -19,7 +19,7 @@ Two independent jobs install real minimal-profile sites with persistent SQLite:
 
 - `fresh`: install the candidate from its actual Git archive.
 - `upgrade`: install official 1.0.0 at commit
-  `91145d2be61188a723b248d956916a810a627ea5`, save a real Key selection without
+  `8c803c609d18a182285628cf0d3dfcc3ef5e3c43` in the identity-clean history, save a real Key selection without
   the new timeout, replace module files with the candidate archive and run
   database updates/cache rebuild. Configuration/state must survive.
 

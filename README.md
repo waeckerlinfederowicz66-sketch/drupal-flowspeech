@@ -1,10 +1,11 @@
 # FlowSpeech for Drupal
 
-## Unreleased Security Follow-up
+## 1.1.1 Safety Release Candidate
 
 The isolated production cURL transport retains HTTP status and Retry-After even when the response body is truncated or times out. Permanent HTTP failures do not retry; transient retries respect the server cooldown and total deadline. This also applies to the bundled shared API client.
 
-FlowSpeech 1.1.0 integrates public API v1 with Drupal AI.
+FlowSpeech 1.1.1 integrates public API v1 with Drupal AI. This candidate is
+prepared locally only; coordinator approval and publication remain separate.
 It preserves textToSpeech(text, voice), returning binary WAV, mime_type and
 response. response is now the completed v1 job, including usage, not a legacy
 code/data envelope. Audio is downloaded WAV at 24 kHz, mono, 16 bit, not PCM
@@ -16,7 +17,7 @@ or API base64. The old WavEncoder utility remains available for compatibility.
   required by Drupal). The upstream Drupal 12 declaration is retained, but full
   Drupal 12 installation and kernel compatibility remain unverified.
 - Drupal AI ^1.0.5 and Key ^1.18, with a working Guzzle HTTPS transport.
-- The unreleased timeout fix requires PHP ext-curl with curl_exec enabled.
+- The timeout fix requires PHP ext-curl with curl_exec enabled.
   Composer and Drupal's installation/status requirements check this dependency.
   These local changes are not included in the published 1.1.0 package.
 - An active paid FlowSpeech Basic, Pro or Scale subscription and developer API
@@ -26,7 +27,7 @@ or API base64. The old WavEncoder utility remains available for compatibility.
 Install the module and rebuild Drupal's caches:
 
 ```bash
-composer require drupal/flowspeech:^1.1
+composer require drupal/flowspeech:^1.1.1
 drush en flowspeech
 drush cr
 ```
@@ -51,7 +52,7 @@ quota.available, not remaining, for new work. getVoices() returns voices.
 textToSpeech(text, voice, requestId=null) submits, polls and downloads under one
 deadline. Persist a UUID before submission when you need reliable recovery.
 Exceptions expose requestId, jobId, errorCode, retryable and traceId.
-The unreleased privacy fix replaces remote HTTP/terminal messages with fixed
+The privacy fix replaces remote HTTP/terminal messages with fixed
 diagnostics and only retains 1-128 character ASCII letter/digit/underscore/hyphen
 code and trace tokens that do not contain the client's API key. Invalid trace
 tokens become null. Job error objects retain a safe message and boolean
@@ -119,7 +120,10 @@ redirect refusal, streamed truncation, byte limits and timeouts. Configuration,
 Key repository and logger dependencies are PHPUnit doubles, not an installed
 Drupal site. The old WAV tests also run under real PHPUnit.
 
-## Verified Full-Site Integration
+## Historical Full-Site Integration
+
+The following evidence predates the 1.1.1 safety candidate and is not a fresh
+or upgrade pass for its bytes. Rerun both modes for the final release tree.
 
 [Full-site CI](https://github.com/waeckerlinfederowicz66-sketch/drupal-flowspeech/actions/runs/40306545344)
 passed on Drupal 11.4.11, AI 1.5.1, Key 1.22.0, PHP 8.4.27 with GD,

@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.1.1 - 2026-10-27 (Candidate)
+
+- Preserve received HTTP status and Retry-After when response bodies are
+  interrupted; never retry permanent HTTP failures or shorten server cooldowns.
+- Prepare a new allowlisted package. Historical installed-site results apply
+  only to their original artifacts; fresh/upgrade validation remains required.
 
 - Stop reflecting remote error messages, unsafe code/trace tokens and nested
   error metadata. Preserve null errors, safe error DTO fields and recovery IDs.
