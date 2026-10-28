@@ -1,0 +1,46 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index a0db725bbdb725b25a8f763e186bf37f5bcec1a5..46c2e0285f2ecd213bd5bfd0022a9a2bc81601eb 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -3 +3 @@
+-## 1.1.1 - 2026-10-27 (Candidate)
++## 1.1.1 - 2026-10-28
+@@ -7,2 +7,2 @@
+-- Prepare a new allowlisted package. Historical installed-site results apply
+-  only to their original artifacts; fresh/upgrade validation remains required.
++- Provide allowlisted 21-file package exports and exact-source installed-file
++  inventories for fresh/upgrade validation. Version 1.1.0 remains unchanged.
+diff --git a/README.md b/README.md
+index 815481ac98a179eb5590d4f3836e7fd82947eb2c..0e7ddb87b561e60f5f888a4707f0d94cc647d511 100644
+--- a/README.md
++++ b/README.md
+@@ -3 +3 @@
+-## 1.1.1 Safety Release Candidate
++## Version 1.1.1
+@@ -7,2 +7,2 @@ The isolated production cURL transport retains HTTP status and Retry-After even
+-FlowSpeech 1.1.1 integrates public API v1 with Drupal AI. This candidate is
+-prepared locally only; coordinator approval and publication remain separate.
++FlowSpeech 1.1.1 integrates public API v1 with Drupal AI and includes the safety
++fixes described below. Version 1.1.0 remains unchanged.
+@@ -22 +22 @@ or API base64. The old WavEncoder utility remains available for compatibility.
+-  These local changes are not included in the published 1.1.0 package.
++  These changes are not included in version 1.1.0.
+@@ -63 +63 @@ use zend.exception_ignore_args=1 for PHP diagnostic trace collection.
+-These privacy changes are not included in published 1.1.0.
++These privacy changes are not included in version 1.1.0.
+@@ -123 +123 @@ Drupal site. The old WAV tests also run under real PHPUnit.
+-## Historical Full-Site Integration
++## Full-Site Validation
+@@ -125,2 +125,7 @@ Drupal site. The old WAV tests also run under real PHPUnit.
+-The following evidence predates the 1.1.1 safety candidate and is not a fresh
+-or upgrade pass for its bytes. Rerun both modes for the final release tree.
++Validation is scoped to exact source commits and exported file hashes.
++[Full-site CI 40630559432](https://github.com/waeckerlinfederowicz66-sketch/drupal-flowspeech/actions/runs/40630559432)
++passed fresh and upgrade modes for GitHub commit
++`0966292d81eb7ecb9935c08ec4c31fdd5ba90f81`. Each mode passed 4 bootstrap,
++33 initial and 31 persistence checks; both installed-phase inventories matched
++all 21 approved package files. Downloaded CI artifacts were independently
++checked. These results do not automatically validate a different commit.
+@@ -128 +133 @@ or upgrade pass for its bytes. Rerun both modes for the final release tree.
+-[Full-site CI](https://github.com/waeckerlinfederowicz66-sketch/drupal-flowspeech/actions/runs/40306545344)
++Earlier [full-site CI](https://github.com/waeckerlinfederowicz66-sketch/drupal-flowspeech/actions/runs/40306545344)

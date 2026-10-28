@@ -1,0 +1,58 @@
+diff --git a/tests/full-site/README.md b/tests/full-site/README.md
+index 82d00d7a158edd5b7ac8c6c2bd86962b895b0ae5..451a01b8a062ff45c9c40eb2e44eb5f700c160c5 100644
+--- a/tests/full-site/README.md
++++ b/tests/full-site/README.md
+@@ -39,5 +39,9 @@ equivalent `8c803c609d18a182285628cf0d3dfcc3ef5e3c43`; the cleaned commit is
+-not substituted into official ancestry. The manifest's `approved_commit` stays
+-`783abe7daf71141a5cc3a89c06b1477a7c802c15` as external reviewed GitHub content
+-provenance, not an official ancestor claim. The executed candidate's own commit
+-is recorded separately in every candidate, installed and result payload. All
+-21 pinned files must still match that approved content exactly.
++not substituted into official ancestry. The manifest's `approved_commit` is
++`26c78be1688fd3617a83fce89bb0f13ce85df5c0`, the content commit that freezes
++the neutral README/CHANGELOG and the unchanged other 19 package files. Its
++following test-only binding commit is the separately executed candidate. This
++two-step provenance avoids embedding a commit's own SHA in its source tree.
++Every candidate, installed and result payload records the executed candidate;
++all 21 pinned files must match the approved content commit exactly. The earlier
++`322597fc233a82dc246a950ba523c5272a77e82a` and its external `783abe7...`
++manifest remain historical evidence, not the refrozen documentation candidate.
+@@ -85,3 +89,2 @@ The original artifacts from commit
+-do not contain installed-file inventories. This test-only change must pass a
+-new reviewed CI run before that missing evidence gate can be closed; existing
+-CI archives are not relabeled as having the new proof.
++do not contain installed-file inventories. Those archives remain historical
++evidence and are not relabeled as having installed-file proof.
+diff --git a/tests/full-site/evidence.test.mjs b/tests/full-site/evidence.test.mjs
+index 544401ca3b9c01e27e148e5c41aff59a7c09e566..1753faf38b2765731263b6ae4dd2bbe29cfa9cdd 100644
+--- a/tests/full-site/evidence.test.mjs
++++ b/tests/full-site/evidence.test.mjs
+@@ -131 +131 @@ test('approved 21-file fixture still matches current public module bytes', () =>
+-  assert.equal(pinnedModule.commit, '783abe7daf71141a5cc3a89c06b1477a7c802c15');
++  assert.equal(pinnedModule.commit, '26c78be1688fd3617a83fce89bb0f13ce85df5c0');
+@@ -162 +162 @@ test('official runner uses the original legacy ancestor, never the cleaned-histo
+-test('immutable external approval stays distinct from the executed official candidate identity', () => {
++test('immutable content approval stays distinct from the executed official candidate identity', () => {
+@@ -164 +164 @@ test('immutable external approval stays distinct from the executed official cand
+-  assert.equal(sha256(pinnedBytes), '5b400698ca13e2ee692905888793dd12c7d8ff22026e3a0023f0119fa2b8ebed');
++  assert.equal(sha256(pinnedBytes), '38b5dc71dd11b8501d1b7bd52710b623326d64477dbe2107d0f3abda9e7fc58c');
+@@ -170 +170 @@ test('immutable external approval stays distinct from the executed official cand
+-  assert.ok(!ancestry.stdout.trim().split('\n').includes(pinnedModule.commit));
++  assert.ok(ancestry.stdout.trim().split('\n').includes(pinnedModule.commit));
+diff --git a/tests/full-site/module-manifest.json b/tests/full-site/module-manifest.json
+index 790433f359e7f4526ceabc3849f2d939d8a9f39c..493b2359ce1f1f2afef217c807ea64357586b24c 100644
+--- a/tests/full-site/module-manifest.json
++++ b/tests/full-site/module-manifest.json
+@@ -2 +2 @@
+-  "commit": "783abe7daf71141a5cc3a89c06b1477a7c802c15",
++  "commit": "26c78be1688fd3617a83fce89bb0f13ce85df5c0",
+@@ -7,2 +7,2 @@
+-      "bytes": 3116,
+-      "sha256": "ec36c76f23057085f92f9f53ff501b6b23ea57860ecb37516328d7050d42a7af"
++      "bytes": 3103,
++      "sha256": "6189164c97ba553cf7731105c4e561c05c75375c6df1b25e45adbaaf8cf06d34"
+@@ -62,2 +62,2 @@
+-      "bytes": 8668,
+-      "sha256": "36f19eea3381a2df4c3c7705b027bbc15505dcf8966f114dfae3f438ec097399"
++      "bytes": 8995,
++      "sha256": "bf0fe7e9439a42a49ecc1090a689c6d4f07466da647a5f97d5b5ecd7490e1a74"

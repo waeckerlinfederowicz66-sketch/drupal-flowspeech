@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "official_url": "https://git.drupalcode.org/project/flowspeech.git",
+  "official_base": "8390cac5e34a3ec4b03a2a94c0844192ca477f42",
+  "official_legacy": "91145d2be61188a723b248d956916a810a627ea5",
+  "legacy_tree": "e6bfe455670c78298e87ee58cffdcf2ad9dea4b0",
+  "expected_candidate": "3e5e09e68a69b140676804714cc2369003eb90db",
+  "expected_tree": "68f386b88234187b5831f5efa1990bfee4623ab3",
+  "approved_commit": "26c78be1688fd3617a83fce89bb0f13ce85df5c0",
+  "approved_manifest_sha256": "38b5dc71dd11b8501d1b7bd52710b623326d64477dbe2107d0f3abda9e7fc58c",
+  "canonical_inventory_sha256": "d6ffd1fe5d7481a865b1eb16f7be7f537a3982395022df6b6260fe2a82798045",
+  "historical_tags": {
+    "1.0.0": "91145d2be61188a723b248d956916a810a627ea5",
+    "1.1.0": "03ede0c3b51e4bbe174d79ca6077ea8aa401132e"
+  },
+  "commits": [
+    {
+      "label": "I",
+      "commit": "322597fc233a82dc246a950ba523c5272a77e82a",
+      "parent": "8390cac5e34a3ec4b03a2a94c0844192ca477f42",
+      "tree": "28e18438773a1be6248dc187a2ab782de6a84b4e",
+      "patch": "01.patch",
+      "patch_sha256": "cd30897f3454ac560b4d6f8a9ba0899fd992793fc0fc26c1fcb327a04d010e62",
+      "metadata": "01.commit",
+      "metadata_sha256": "410a3ef404901f0439b5140816e9ef131332cd5edd7c1ec945ecd05ba44baea3"
+    },
+    {
+      "label": "J",
+      "commit": "26c78be1688fd3617a83fce89bb0f13ce85df5c0",
+      "parent": "322597fc233a82dc246a950ba523c5272a77e82a",
+      "tree": "8bc122d9f9e921ac95d5adc2439a805bfe4b4346",
+      "patch": "02.patch",
+      "patch_sha256": "efe7e1b82def5eb5e4a57c62d4ae678d0e7abe5e6f7a31962eed3a5bca2f2977",
+      "metadata": "02.commit",
+      "metadata_sha256": "94adceff9330adfb4e5ad26dec107bb02a5b1bfdb9c5a46598abba76136a213e"
+    },
+    {
+      "label": "K",
+      "commit": "3e5e09e68a69b140676804714cc2369003eb90db",
+      "parent": "26c78be1688fd3617a83fce89bb0f13ce85df5c0",
+      "tree": "68f386b88234187b5831f5efa1990bfee4623ab3",
+      "patch": "03.patch",
+      "patch_sha256": "38fb54b2eab53689dc4b1af9bf6a224e82178a19f760f5088ed0d8296faccc06",
+      "metadata": "03.commit",
+      "metadata_sha256": "51a80dd450fedf864aac575943fe3f4b11638f294bd1da02e6263f4b13a2edf6"
+    }
+  ]
+}

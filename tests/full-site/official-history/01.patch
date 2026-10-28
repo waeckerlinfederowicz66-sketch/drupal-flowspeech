@@ -1,0 +1,1451 @@
+diff --git a/.github/workflows/drupal-full-site.yml b/.github/workflows/drupal-full-site.yml
+index 227cba8e8f33ceb999ccc1b79c7a29d86988afa9..a3d7a5eda3891ab377a90cae6d28f89c90dd16a3 100644
+--- a/.github/workflows/drupal-full-site.yml
++++ b/.github/workflows/drupal-full-site.yml
+@@ -49,0 +50,3 @@ jobs:
++            .tools/full-site/${{ matrix.mode }}/candidate-module-manifest.json
++            .tools/full-site/${{ matrix.mode }}/installed-module-initial.json
++            .tools/full-site/${{ matrix.mode }}/installed-module-persisted.json
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 98df699dd7b5789bc5593b7084dfe6a88af8ae05..a0db725bbdb725b25a8f763e186bf37f5bcec1a5 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,0 +3,21 @@
++## 1.1.1 - 2026-10-27 (Candidate)
++
++- Preserve received HTTP status and Retry-After when response bodies are
++  interrupted; never retry permanent HTTP failures or shorten server cooldowns.
++- Prepare a new allowlisted package. Historical installed-site results apply
++  only to their original artifacts; fresh/upgrade validation remains required.
++
++- Stop reflecting remote error messages, unsafe code/trace tokens and nested
++  error metadata. Preserve null errors, safe error DTO fields and recovery IDs.
++- Keep the Drupal AI exception type and structured cause, but omit call
++  arguments from exception strings so signed download URLs are not rendered.
++- Verify HTTP/terminal/storage failures through real Guzzle TLS and Drupal AI
++  exception classes with virtual credentials only; no production API calls.
++
++- Require ext-curl in Composer and Drupal installation/status requirements.
++  Use an isolated Guzzle cURL handler instead of a site-customizable handler,
++  retaining an explicit offline mock injection point. Use a
++  bounded response sink, so slow headers and body share one hard timeout.
++- Add verified loopback TLS regressions for slow headers/body, recovery IDs
++  after timeout, and transport reuse. These changes are not in published 1.1.0.
++
+diff --git a/README.md b/README.md
+index 76e251c02438a6a0f3b22b00c5ff68dc48fe1fc5..815481ac98a179eb5590d4f3836e7fd82947eb2c 100644
+--- a/README.md
++++ b/README.md
+@@ -3 +3,6 @@
+-FlowSpeech 1.1.0 integrates public API v1 with Drupal AI.
++## 1.1.1 Safety Release Candidate
++
++The isolated production cURL transport retains HTTP status and Retry-After even when the response body is truncated or times out. Permanent HTTP failures do not retry; transient retries respect the server cooldown and total deadline. This also applies to the bundled shared API client.
++
++FlowSpeech 1.1.1 integrates public API v1 with Drupal AI. This candidate is
++prepared locally only; coordinator approval and publication remain separate.
+@@ -14,0 +20,3 @@ or API base64. The old WavEncoder utility remains available for compatibility.
++- The timeout fix requires PHP ext-curl with curl_exec enabled.
++  Composer and Drupal's installation/status requirements check this dependency.
++  These local changes are not included in the published 1.1.0 package.
+@@ -22 +30 @@ Install the module and rebuild Drupal's caches:
+-composer require drupal/flowspeech:^1.1
++composer require drupal/flowspeech:^1.1.1
+@@ -46,0 +55,9 @@ Exceptions expose requestId, jobId, errorCode, retryable and traceId.
++The privacy fix replaces remote HTTP/terminal messages with fixed
++diagnostics and only retains 1-128 character ASCII letter/digit/underscore/hyphen
++code and trace tokens that do not contain the client's API key. Invalid trace
++tokens become null. Job error objects retain a safe message and boolean
++retryable; error: null remains null. Recovery IDs are preserved.
++Drupal AI exception strings retain stack frame names but omit call arguments,
++including signed download URLs. Do not dump raw traces or client objects;
++use zend.exception_ignore_args=1 for PHP diagnostic trace collection.
++These privacy changes are not included in published 1.1.0.
+@@ -67,2 +84,4 @@ WAV downloads are capped at 32 MiB. Both API and storage redirects are refused.
+-A fresh Guzzle client shares only Drupal's handler, not its default headers,
+-auth or cookies. Keys are never sent to storage hosts. Logs do not record
++A fresh Guzzle client uses an isolated cURL handler, not Drupal's configurable
++handler stack, default headers, auth, cookies or environment proxy. A site-level
++StreamHandler override cannot weaken its total HTTP timeout. Keys are never sent
++to storage hosts. Logs do not record
+@@ -75,0 +95,7 @@ Drupal AI call before the configured client deadline.
++The optional fifth FlowSpeechApiService constructor argument is an explicit
++isolated ClientInterface override for offline transport tests. Its handler must
++implement the transport contract itself; the cURL wall-clock guarantee does not
++apply to a deliberately injected custom/mock handler. Normal Drupal service
++configuration does not set this argument. TLS verification and response-size
++limits remain enabled on both paths.
++
+@@ -97 +123,4 @@ Drupal site. The old WAV tests also run under real PHPUnit.
+-## Verified Full-Site Integration
++## Historical Full-Site Integration
++
++The following evidence predates the 1.1.1 safety candidate and is not a fresh
++or upgrade pass for its bytes. Rerun both modes for the final release tree.
+diff --git a/VERSION b/VERSION
+index 9084fa2f716a7117829f3f32a5f4cef400e02903..524cb55242b53f6a64cc646ea05db6acc7696d2d 100644
+--- a/VERSION
++++ b/VERSION
+@@ -1 +1 @@
+-1.1.0
++1.1.1
+diff --git a/composer.json b/composer.json
+index 9d8deb7cdb1acc3e935815f045d01da97a150c0e..ec8f6f4420c90190880db369b149472ecfa9f893 100644
+--- a/composer.json
++++ b/composer.json
+@@ -20,0 +21 @@
++    "ext-curl": "*",
+diff --git a/flowspeech.install b/flowspeech.install
+new file mode 100644
+index 0000000000000000000000000000000000000000..4ff2c16131c12eaf0df8413463ca9b6dd8ede772
+--- /dev/null
++++ b/flowspeech.install
+@@ -0,0 +1,20 @@
++<?php
++
++use Drupal\Core\Extension\Requirement\RequirementSeverity;
++
++/**
++ * Implements hook_requirements().
++ */
++function flowspeech_requirements($phase): array {
++  $available = function_exists('curl_exec');
++  // Drupal 10 uses integer severities; newer cores provide the enum.
++  $severity = class_exists(RequirementSeverity::class)
++    ? ($available ? RequirementSeverity::OK : RequirementSeverity::Error)
++    : ($available ? 0 : 2);
++  return ['flowspeech_curl' => [
++    'title' => t('FlowSpeech cURL transport'),
++    'value' => $available ? t('Available') : t('Unavailable'),
++    'severity' => $severity,
++    'description' => t('FlowSpeech requires PHP ext-curl with curl_exec enabled to enforce a total HTTP timeout, including slow response headers.'),
++  ]];
++}
+diff --git a/scripts/build.mjs b/scripts/build.mjs
+index 5c52ccc3ee375d24ea09344bfda16b2d92cd41ac..1e4d469bbf4464aac4f09cdb4552747c06ccd9df 100644
+--- a/scripts/build.mjs
++++ b/scripts/build.mjs
+@@ -11 +11 @@ const slug = 'flowspeech';
+-const allow = ["src","composer.json","README.md","CHANGELOG.md","LICENSE.txt","SDK-LICENSE.txt","VERSION","config","definitions","flowspeech.info.yml","flowspeech.links.menu.yml","flowspeech.routing.yml","flowspeech.services.yml"];
++const allow = ["src","composer.json","README.md","CHANGELOG.md","LICENSE.txt","SDK-LICENSE.txt","VERSION","config","definitions","flowspeech.info.yml","flowspeech.install","flowspeech.links.menu.yml","flowspeech.routing.yml","flowspeech.services.yml"];
+diff --git a/scripts/full-site-evidence.mjs b/scripts/full-site-evidence.mjs
+index 6c931a444f123d98c9e8654790d965b2e2745d61..3f43d584108228ef1a3ba11cf2f03fe3e86ee44c 100644
+--- a/scripts/full-site-evidence.mjs
++++ b/scripts/full-site-evidence.mjs
+@@ -2,0 +3 @@ import path from 'node:path';
++import { createHash } from 'node:crypto';
+@@ -49,0 +51,144 @@ export function readSmokeEvidence(logs, identity) {
++
++const digest = (data) => createHash('sha256').update(data).digest('hex');
++const moduleFileCount = 21;
++
++function manifestFiles(files) {
++  if (!Array.isArray(files) || files.length !== moduleFileCount) throw new Error('Expected exactly 21 module files.');
++  const names = new Set();
++  const normalized = files.map((file) => {
++    if (!file || Object.keys(file).sort().join(',') !== 'bytes,path,sha256' ||
++        typeof file.path !== 'string' || !file.path || path.posix.normalize(file.path) !== file.path ||
++        path.posix.isAbsolute(file.path) || /[\\\x00-\x1f\x7f:]/.test(file.path) ||
++        file.path.split('/').some((part) => !part || part === '.' || part === '..') ||
++        /(^|\/)(?:\.env[^/]*|\.git|\.tools|vendor|tests|scripts|dist|settings\.php|auth\.json)(\/|$)/.test(file.path) ||
++        /\.(?:sqlite|db|sql|pem|key)$/.test(file.path) || names.has(file.path) ||
++        !Number.isSafeInteger(file.bytes) || file.bytes < 0 || !/^[a-f0-9]{64}$/.test(file.sha256)) {
++      throw new Error('Invalid module manifest entry.');
++    }
++    names.add(file.path);
++    return { path: file.path, bytes: file.bytes, sha256: file.sha256 };
++  });
++  return normalized.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
++}
++
++function assertInventoryIdentity(identity) {
++  if (!identity || Object.keys(identity).sort().join(',') !== 'commit,drupal,mode,nonce,root' ||
++      !['fresh', 'upgrade'].includes(identity.mode) || !/^[a-f0-9]{40}$/.test(identity.commit) ||
++      !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(identity.nonce) ||
++      !path.isAbsolute(identity.root) || path.resolve(identity.root) !== identity.root ||
++      !identity.root.endsWith(path.sep + path.join(identity.mode, 'site/web')) ||
++      /[\x00-\x1f\x7f]/.test(identity.root) || !/^\d+\.\d+\.\d+$/.test(identity.drupal)) {
++    throw new Error('Invalid installed-module evidence identity.');
++  }
++}
++
++function inventory(directory, expected) {
++  if (fs.lstatSync(directory).isSymbolicLink() || fs.realpathSync(directory) !== path.resolve(directory)) {
++    throw new Error('Module root must be a real isolated directory.');
++  }
++  const allowed = new Set(expected.map((file) => file.path));
++  const directories = new Set(expected.flatMap((file) => {
++    const parts = file.path.split('/');
++    return parts.slice(0, -1).map((_, index) => parts.slice(0, index + 1).join('/'));
++  }));
++  const files = [];
++  const walk = (current, prefix = '') => {
++    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
++      const relative = prefix ? prefix + '/' + entry.name : entry.name;
++      const filename = path.join(current, entry.name);
++      if (entry.isSymbolicLink()) throw new Error('Module inventory rejects symlinks.');
++      if (entry.isDirectory()) {
++        if (!directories.has(relative)) throw new Error('Unexpected module directory.');
++        walk(filename, relative);
++      } else {
++        if (!entry.isFile() || !allowed.has(relative) || fs.statSync(filename).nlink !== 1) {
++          throw new Error('Unexpected module file or hardlink.');
++        }
++        const bytes = fs.readFileSync(filename);
++        files.push({ path: relative, bytes: bytes.length, sha256: digest(bytes) });
++      }
++    }
++  };
++  walk(directory);
++  const actual = manifestFiles(files);
++  if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error('Installed module differs from approved candidate files.');
++  return actual;
++}
++
++function candidateFiles(candidate, identity) {
++  assertInventoryIdentity(identity);
++  for (const [key, value] of Object.entries({ ...identity, schema_version: 1, module: 'flowspeech', phase: 'candidate-export', status: 'passed' })) {
++    if (candidate?.[key] !== value) throw new Error('Candidate manifest identity mismatch: ' + key);
++  }
++  const files = manifestFiles(candidate.files);
++  if (candidate.file_count !== moduleFileCount || candidate.manifest_sha256 !== digest(JSON.stringify(files)) ||
++      !/^[a-f0-9]{40}$/.test(candidate.approved_commit) || !/^\d+\.\d+\.\d+$/.test(candidate.version) ||
++      Object.keys(candidate).sort().join(',') !== [...Object.keys(identity), 'schema_version', 'module', 'phase', 'status',
++        'approved_commit', 'version', 'file_count', 'manifest_sha256', 'files'].sort().join(',')) {
++    throw new Error('Invalid candidate module manifest.');
++  }
++  return files;
++}
++
++export function writeCandidateModuleManifest(filename, directory, approved, identity) {
++  assertInventoryIdentity(identity);
++  if (!/^[a-f0-9]{40}$/.test(approved?.commit) || !/^\d+\.\d+\.\d+$/.test(approved?.version)) {
++    throw new Error('Invalid approved module manifest.');
++  }
++  const expected = manifestFiles(approved.files);
++  const files = inventory(directory, expected);
++  if (fs.readFileSync(path.join(directory, 'VERSION'), 'utf8').trim() !== approved.version) {
++    throw new Error('Candidate module version mismatch.');
++  }
++  const evidence = { schema_version: 1, module: 'flowspeech', version: approved.version, ...identity,
++    phase: 'candidate-export', approved_commit: approved.commit, status: 'passed', file_count: files.length,
++    manifest_sha256: digest(JSON.stringify(files)), files };
++  fs.writeFileSync(filename, JSON.stringify(evidence, null, 2) + '\n');
++  return readCandidateModuleManifest(filename, identity, approved);
++}
++
++export function readCandidateModuleManifest(filename, identity, approved) {
++  let evidence;
++  try { evidence = JSON.parse(fs.readFileSync(filename, 'utf8')); }
++  catch { throw new Error('Missing or invalid candidate module manifest.'); }
++  const files = candidateFiles(evidence, identity);
++  if (evidence.approved_commit !== approved.commit || evidence.version !== approved.version ||
++      JSON.stringify(files) !== JSON.stringify(manifestFiles(approved.files))) {
++    throw new Error('Candidate export differs from the approved module manifest.');
++  }
++  return evidence;
++}
++
++export function readInstalledModuleEvidence(filename, identity, phase, candidate) {
++  if (!['initial', 'persisted'].includes(phase)) throw new Error('Unknown installed-module phase.');
++  const expected = candidateFiles(candidate, identity);
++  let evidence;
++  try { evidence = JSON.parse(fs.readFileSync(filename, 'utf8')); }
++  catch { throw new Error('Missing or invalid installed-module evidence.'); }
++  const binding = { ...identity, schema_version: 1, module: 'flowspeech', version: candidate.version, phase,
++    approved_commit: candidate.approved_commit, status: 'passed', file_count: moduleFileCount,
++    module_root: path.join(identity.root, 'modules/custom/flowspeech'),
++    candidate_manifest_sha256: candidate.manifest_sha256, manifest_sha256: candidate.manifest_sha256 };
++  for (const [key, value] of Object.entries(binding)) {
++    if (evidence?.[key] !== value) throw new Error('Installed-module evidence identity mismatch: ' + key);
++  }
++  if (Object.keys(evidence).sort().join(',') !== [...Object.keys(binding), 'files'].sort().join(',') ||
++      JSON.stringify(manifestFiles(evidence.files)) !== JSON.stringify(expected)) {
++    throw new Error('Installed-module evidence file inventory mismatch.');
++  }
++  return evidence;
++}
++
++export function writeInstalledModuleEvidence(filename, directory, identity, phase, candidate) {
++  const expected = candidateFiles(candidate, identity);
++  if (!['initial', 'persisted'].includes(phase) || path.resolve(directory) !== path.join(identity.root, 'modules/custom/flowspeech')) {
++    throw new Error('Installed-module phase or site root mismatch.');
++  }
++  const files = inventory(directory, expected);
++  const evidence = { schema_version: 1, module: 'flowspeech', version: candidate.version, ...identity, phase,
++    approved_commit: candidate.approved_commit, status: 'passed', file_count: files.length,
++    module_root: path.resolve(directory), candidate_manifest_sha256: candidate.manifest_sha256,
++    manifest_sha256: digest(JSON.stringify(files)), files };
++  fs.writeFileSync(filename, JSON.stringify(evidence, null, 2) + '\n');
++  return readInstalledModuleEvidence(filename, identity, phase, candidate);
++}
+diff --git a/scripts/full-site.mjs b/scripts/full-site.mjs
+index 12e75e5911e0db8c8600e89a28f3ca82f955a0bb..ad6a10512a69573a6314351188be10a541396a2c 100644
+--- a/scripts/full-site.mjs
++++ b/scripts/full-site.mjs
+@@ -6 +6,2 @@ import { randomUUID } from 'node:crypto';
+-import { assertPhpEntrypoint, assertDrushVersion, readEvidence, readSmokeEvidence } from './full-site-evidence.mjs';
++import { assertPhpEntrypoint, assertDrushVersion, readEvidence, readSmokeEvidence,
++  writeCandidateModuleManifest, writeInstalledModuleEvidence } from './full-site-evidence.mjs';
+@@ -41 +42,2 @@ const resultFile = path.join(state, 'result.json');
+-const report = { mode, status: 'pending', site_bootstrapped: false, full_site_executed: false };
++const report = { mode, status: 'pending', site_bootstrapped: false, full_site_executed: false,
++  installed_module_verified: false };
+@@ -58,0 +61,8 @@ try {
++  const approved = JSON.parse(fs.readFileSync(path.join(root, 'tests/full-site/module-manifest.json'), 'utf8'));
++  const candidateArchive = path.join(state, 'candidate-module.tar');
++  const candidateExport = path.join(state, 'candidate-export');
++  run('candidate-manifest-archive', 'git', ['archive', '--format=tar', '--output=' + candidateArchive, commit]);
++  fs.mkdirSync(candidateExport);
++  run('candidate-manifest-extract', 'tar', ['-xf', candidateArchive, '-C', candidateExport]);
++  const candidateManifest = writeCandidateModuleManifest(path.join(state, 'candidate-module-manifest.json'),
++    candidateExport, approved, identity);
+@@ -98,0 +109,2 @@ $settings['http_client_config']['headers']['Cookie'] = 'must-not-leak';
++  report.installed_module = [writeInstalledModuleEvidence(path.join(state, 'installed-module-initial.json'),
++    modulePath, identity, 'initial', candidateManifest)];
+@@ -100,0 +113,2 @@ $settings['http_client_config']['headers']['Cookie'] = 'must-not-leak';
++  report.installed_module.push(writeInstalledModuleEvidence(path.join(state, 'installed-module-persisted.json'),
++    modulePath, identity, 'persisted', candidateManifest));
+@@ -101,0 +116 @@ $settings['http_client_config']['headers']['Cookie'] = 'must-not-leak';
++  report.installed_module_verified = true;
+diff --git a/scripts/run-deadline.mjs b/scripts/run-deadline.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..97c526517d2b57a9ccbc79d1221940e210d595b6
+--- /dev/null
++++ b/scripts/run-deadline.mjs
+@@ -0,0 +1,54 @@
++import fs from 'node:fs';
++import path from 'node:path';
++import tls from 'node:tls';
++import { fileURLToPath } from 'node:url';
++import { spawn } from 'node:child_process';
++
++const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
++const sdk = path.resolve(root, '../flowspeech-php');
++const cert = process.env.FLOWSPEECH_TEST_CERT_DIR || path.join(sdk, '.tools/fixture-certificates');
++const php = process.env.PHP_BIN || path.join(sdk, '.tools/php/bin/php');
++const phpunit = process.env.PHPUNIT_BIN || path.join(root, '.tools/vendor/bin/phpunit');
++const sockets = new Set();
++const server = tls.createServer({ key: fs.readFileSync(path.join(cert, 'server.key')),
++  cert: fs.readFileSync(path.join(cert, 'server.pem')) }, socket => {
++  sockets.add(socket);
++  socket.on('error', () => {});
++  socket.on('close', () => sockets.delete(socket));
++  socket.once('data', bytes => {
++    const url = bytes.toString().split(' ')[1];
++    if (url === '/ok') {
++      socket.end('HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}');
++      return;
++    }
++    const body = url === '/slow-body';
++    socket.write(body ? 'HTTP/1.1 200 OK\r\nContent-Length: 30\r\nConnection: close\r\n\r\n' : 'HTTP/1.1 200 OK\r\n');
++    let count = 0;
++    const timer = setInterval(() => {
++      if (++count < 30) socket.write(body ? 'x' : 'X-Drip-' + count + ': x\r\n');
++      else {
++        clearInterval(timer);
++        socket.end(body ? 'x' : 'Content-Length: 2\r\nConnection: close\r\n\r\n{}');
++      }
++    }, 100);
++    socket.on('close', () => clearInterval(timer));
++  });
++});
++await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
++const env = { ...process.env, FLOWSPEECH_DEADLINE_ENDPOINT: 'https://127.0.0.1:' + server.address().port,
++  NO_PROXY: '127.0.0.1', no_proxy: '127.0.0.1' };
++delete env.FLOWSPEECH_API_KEY;
++try {
++  process.exitCode = await new Promise((resolve, reject) => {
++    const child = spawn(php, ['-d', 'curl.cainfo=' + path.join(cert, 'ca.pem'),
++      '-d', 'openssl.cafile=' + path.join(cert, 'ca.pem'), phpunit, '--no-configuration',
++      '--bootstrap', 'tests/framework-bootstrap.php', 'tests/DeadlineTransportTest.php'],
++    { cwd: root, env, stdio: 'inherit' });
++    const watchdog = setTimeout(() => child.kill('SIGKILL'), 15000);
++    child.once('error', error => { clearTimeout(watchdog); reject(error); });
++    child.once('exit', code => { clearTimeout(watchdog); resolve(code ?? 1); });
++  });
++} finally {
++  for (const socket of sockets) socket.destroy();
++  await new Promise(resolve => server.close(resolve));
++}
+diff --git a/src/Api/FlowSpeechClient.php b/src/Api/FlowSpeechClient.php
+index 651516c8d0af3493255dc2e4e52af32d5bf050e7..341aa62d191bf009a4cc3d8dea5c51151877679a 100644
+--- a/src/Api/FlowSpeechClient.php
++++ b/src/Api/FlowSpeechClient.php
+@@ -299,0 +300,18 @@ final class FlowSpeechClient
++        if (isset($job['error'])) {
++            if (!is_array($job['error'])) {
++                throw $this->failure('Malformed job error.', 'invalid_response');
++            }
++            $details = $job['error'];
++            $terminal = in_array($job['status'], ['failed', 'cancelled'], true);
++            $job['error'] = [
++                'code' => $this->errorToken($details['code'] ?? null) ?? ($terminal ? $job['status'] : 'job_error'),
++                'message' => $terminal ? 'FlowSpeech job ' . $job['status'] . '.' : 'FlowSpeech job reported an error.',
++                'retryable' => ($details['retryable'] ?? false) === true,
++            ];
++            if (array_key_exists('traceId', $details)) {
++                $job['error']['traceId'] = $this->errorToken($details['traceId']);
++            }
++        }
++        if (array_key_exists('traceId', $job)) {
++            $job['traceId'] = $this->errorToken($job['traceId']);
++        }
+@@ -434,4 +452,3 @@ final class FlowSpeechClient
+-                $failure = $this->failure($api && is_string($error['message'] ?? null) ?
+-                    $error['message'] : 'HTTP request failed (' . $status . ').',
+-                    is_string($error['code'] ?? null) ? $error['code'] : 'http_error', $status, $retryable);
+-                $failure->traceId = is_string($data['traceId'] ?? null) ? $data['traceId'] : null;
++                $failure = $this->failure('FlowSpeech ' . ($api ? 'API' : 'download') . ' returned HTTP ' . $status . '.',
++                    $this->errorToken($error['code'] ?? null) ?? 'http_error', $status, $retryable);
++                $failure->traceId = $this->errorToken($data['traceId'] ?? null);
+@@ -442,0 +460,2 @@ final class FlowSpeechClient
++                $delay = max($delay, $error->retryAfterSeconds);
++                $this->retryAfter = $delay;
+@@ -449 +468,7 @@ final class FlowSpeechClient
+-    private function retryDelay(array $headers): float
++    private function errorToken(mixed $value): ?string
++    {
++        return is_string($value) && !str_contains($value, $this->apiKey) &&
++            preg_match('/^[A-Za-z0-9_-]{1,128}$/D', $value) === 1 ? $value : null;
++    }
++
++    private static function retryDelay(array $headers): float
+@@ -520,0 +546 @@ final class FlowSpeechClient
++                if (preg_match('/^HTTP\/\S+\s+\d{3}/i', $line)) { $responseHeaders = []; }
+@@ -538 +564 @@ final class FlowSpeechClient
+-            throw new FlowSpeechException('Network request failed.', 0, 'network_error', true);
++            throw self::transportFailure($status, $responseHeaders);
+@@ -541,0 +568,10 @@ final class FlowSpeechClient
++
++    /** Preserve received headers when a transport cannot finish the body. */
++    public static function transportFailure(int $status, array $headers): FlowSpeechException
++    {
++        $retryable = $status === 0 || ($status >= 200 && $status < 300) || $status === 429 ||
++            ($status >= 500 && $status <= 599);
++        $error = new FlowSpeechException('FlowSpeech response could not be read.', $status, 'network_error', $retryable);
++        $error->retryAfterSeconds = self::retryDelay($headers);
++        return $error;
++    }
+diff --git a/src/Api/FlowSpeechException.php b/src/Api/FlowSpeechException.php
+index 7ad04730e6935fb96c5847e7a73f68843c672a20..e9b425bdeeab8f71f944f4bff48b4a208ac5ea86 100644
+--- a/src/Api/FlowSpeechException.php
++++ b/src/Api/FlowSpeechException.php
+@@ -25,0 +26,21 @@ final class FlowSpeechException extends RuntimeException
++
++    public function __toString(): string
++    {
++        return self::formatException($this);
++    }
++
++    public static function formatException(Throwable $error): string
++    {
++        $frames = [];
++        foreach ($error->getTrace() as $index => $frame) {
++            $location = isset($frame['file']) ? $frame['file'] . '(' . ($frame['line'] ?? 0) . ')' : '[internal function]';
++            $frames[] = '#' . $index . ' ' . $location . ': ' . ($frame['class'] ?? '') .
++                ($frame['type'] ?? '') . ($frame['function'] ?? '') . '()';
++        }
++        $frames[] = '#' . count($frames) . ' {main}';
++        $previous = $error->getPrevious();
++        // PHP's default exception string can print signed URLs from call arguments.
++        return ($previous === null ? '' : self::formatException($previous) . "\n\nNext ") .
++            get_class($error) . ': ' . $error->getMessage() . ' in ' . $error->getFile() . ':' . $error->getLine() .
++            "\nStack trace:\n" . implode("\n", $frames);
++    }
+diff --git a/src/Exception/FlowSpeechProviderException.php b/src/Exception/FlowSpeechProviderException.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..ae2803b925b1efaeb150f71449bcbbf59063befc
+--- /dev/null
++++ b/src/Exception/FlowSpeechProviderException.php
+@@ -0,0 +1,16 @@
++<?php
++
++declare(strict_types=1);
++
++namespace Drupal\flowspeech\Exception;
++
++use Drupal\ai\Exception\AiBadRequestException;
++use Drupal\flowspeech\Api\FlowSpeechException;
++
++final class FlowSpeechProviderException extends AiBadRequestException {
++
++  public function __toString(): string {
++    return FlowSpeechException::formatException($this);
++  }
++
++}
+diff --git a/src/FlowSpeechApiService.php b/src/FlowSpeechApiService.php
+index c6b480c7b4aed8030bee4fd483bb9d5c837f2b7c..ae6f5d56e8d5e559cadd47763adca1752fb2d2cd 100644
+--- a/src/FlowSpeechApiService.php
++++ b/src/FlowSpeechApiService.php
+@@ -15,0 +16,6 @@ use GuzzleHttp\Exception\TransferException;
++use GuzzleHttp\Exception\RequestException;
++use GuzzleHttp\Handler\CurlHandler;
++use GuzzleHttp\HandlerStack;
++use GuzzleHttp\Psr7\FnStream;
++use GuzzleHttp\Psr7\Utils;
++use Psr\Http\Message\ResponseInterface;
+@@ -29,0 +36 @@ final class FlowSpeechApiService {
++    private readonly ?ClientInterface $transportClient = NULL,
+@@ -74 +81,2 @@ final class FlowSpeechApiService {
+-   * Uses a fresh client so Drupal's default auth/cookies cannot reach storage.
++   * Uses an isolated cURL client, independent of site handlers/auth/cookies.
++   * The optional transportClient constructor argument is for explicit mocks.
+@@ -77 +85,7 @@ final class FlowSpeechApiService {
+-    $client = new Client(['handler' => $this->httpClient->getConfig('handler')]);
++    if (!function_exists('curl_exec')) {
++      throw new FlowSpeechException('The cURL extension is required for bounded HTTP requests.', 0, 'missing_curl');
++    }
++    $client = new Client([
++      'handler' => $this->transportClient?->getConfig('handler') ?? HandlerStack::create(new CurlHandler()),
++      'proxy' => [],
++    ]);
+@@ -78,0 +93,13 @@ final class FlowSpeechApiService {
++    $buffer = Utils::streamFor();
++    $oversized = FALSE;
++    $status = 0;
++    $headers = [];
++    $sink = FnStream::decorate($buffer, [
++      'write' => static function (string $chunk) use ($buffer, $request, &$oversized): int {
++        if ($buffer->getSize() + strlen($chunk) > $request['maxBytes']) {
++          $oversized = TRUE;
++          return 0;
++        }
++        return $buffer->write($chunk);
++      },
++    ]);
+@@ -85 +111,0 @@ final class FlowSpeechApiService {
+-        'read_timeout' => $request['timeout'],
+@@ -91 +117,8 @@ final class FlowSpeechApiService {
+-        'stream' => TRUE,
++        // Streaming selects Guzzle's PHP stream handler, whose header reads
++        // have per-read timeouts. cURL bounds headers and body together.
++        'stream' => FALSE,
++        'sink' => $sink,
++        'on_headers' => static function (ResponseInterface $response) use (&$status, &$headers): void {
++          $status = $response->getStatusCode();
++          $headers = $response->getHeaders();
++        },
+@@ -93,3 +126,4 @@ final class FlowSpeechApiService {
+-      $stream = $response->getBody()->detach();
+-      if (!is_resource($stream)) {
+-        throw new FlowSpeechException('Unable to read response stream.', 0, 'network_error', TRUE);
++      $status = $response->getStatusCode();
++      $headers = $response->getHeaders();
++      if ($oversized) {
++        throw new FlowSpeechException('Response exceeded size limit.', 0, 'response_too_large');
+@@ -97,17 +131,2 @@ final class FlowSpeechApiService {
+-      $body = '';
+-      try {
+-        while (!feof($stream)) {
+-          $remaining = $request['timeout'] - (hrtime(TRUE) / 1e9 - $started);
+-          if ($remaining <= 0) {
+-            throw new FlowSpeechException('Request timed out.', 0, 'network_error', TRUE);
+-          }
+-          stream_set_timeout($stream, (int) $remaining, (int) (($remaining - (int) $remaining) * 1e6));
+-          $chunk = fread($stream, min(8192, $request['maxBytes'] + 1 - strlen($body)));
+-          if ($chunk === FALSE || ($chunk === '' && !feof($stream))) {
+-            throw new FlowSpeechException('Response stream interrupted.', 0, 'network_error', TRUE);
+-          }
+-          $body .= $chunk;
+-          if (strlen($body) > $request['maxBytes']) {
+-            throw new FlowSpeechException('Response exceeded size limit.', 0, 'response_too_large');
+-          }
+-        }
++      if (hrtime(TRUE) / 1e9 - $started >= $request['timeout']) {
++        throw FlowSpeechClient::transportFailure($status, $headers);
+@@ -115,2 +134,4 @@ final class FlowSpeechApiService {
+-      finally {
+-        fclose($stream);
++      $response->getBody()->rewind();
++      $body = $response->getBody()->read($request['maxBytes'] + 1);
++      if (strlen($body) > $request['maxBytes']) {
++        throw new FlowSpeechException('Response exceeded size limit.', 0, 'response_too_large');
+@@ -120 +141 @@ final class FlowSpeechApiService {
+-        throw new FlowSpeechException('Response stream was truncated.', 0, 'network_error', TRUE);
++        throw FlowSpeechClient::transportFailure($status, $headers);
+@@ -124,0 +146,3 @@ final class FlowSpeechApiService {
++      if ($oversized) {
++        throw new FlowSpeechException('Response exceeded size limit.', 0, 'response_too_large');
++      }
+@@ -126 +150,8 @@ final class FlowSpeechApiService {
+-      throw new FlowSpeechException('FlowSpeech network request failed.', 0, 'network_error', TRUE);
++      if ($exception instanceof RequestException && $exception->hasResponse()) {
++        $status = $exception->getResponse()->getStatusCode();
++        $headers = $exception->getResponse()->getHeaders();
++      }
++      throw FlowSpeechClient::transportFailure($status, $headers);
++    }
++    finally {
++      $sink->close();
+diff --git a/src/Plugin/AiProvider/FlowSpeechProvider.php b/src/Plugin/AiProvider/FlowSpeechProvider.php
+index 9f501a3c3437a53da4acb0a0391de93bc5cc5fb2..dfef63a0a58edf83e63b325e606aaccd901715d3 100644
+--- a/src/Plugin/AiProvider/FlowSpeechProvider.php
++++ b/src/Plugin/AiProvider/FlowSpeechProvider.php
+@@ -167,0 +168,3 @@ final class FlowSpeechProvider extends AiProviderClientBase implements Container
++    catch (\Drupal\flowspeech\Api\FlowSpeechException $exception) {
++      throw new \Drupal\flowspeech\Exception\FlowSpeechProviderException($exception->getMessage(), 0, $exception);
++    }
+@@ -169 +172 @@ final class FlowSpeechProvider extends AiProviderClientBase implements Container
+-      throw new AiBadRequestException($exception->getMessage(), 0, $exception);
++      throw new \Drupal\flowspeech\Exception\FlowSpeechProviderException('FlowSpeech request failed.');
+diff --git a/tests/DeadlineTransportTest.php b/tests/DeadlineTransportTest.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..fcc17b4104755db2ce0f0f47a889e9f5190fae83
+--- /dev/null
++++ b/tests/DeadlineTransportTest.php
+@@ -0,0 +1,87 @@
++<?php
++declare(strict_types=1);
++
++use Drupal\flowspeech\Api\FlowSpeechClient;
++use Drupal\flowspeech\Api\FlowSpeechException;
++use Drupal\flowspeech\FlowSpeechApiService;
++use Drupal\Core\Http\ClientFactory;
++use Drupal\Core\Site\Settings;
++use GuzzleHttp\Client;
++use GuzzleHttp\Handler\StreamHandler;
++use GuzzleHttp\HandlerStack;
++use PHPUnit\Framework\TestCase;
++
++final class DeadlineTransportTest extends TestCase {
++    private FlowSpeechApiService $service;
++    private string $endpoint;
++
++    protected function setUp(): void {
++        $endpoint = getenv('FLOWSPEECH_DEADLINE_ENDPOINT');
++        if (!$endpoint) self::markTestSkipped('Run scripts/run-deadline.mjs for the verified TLS fixture.');
++        self::assertSame('127.0.0.1', parse_url($endpoint, PHP_URL_HOST));
++        $this->endpoint = $endpoint;
++        $reflection = new ReflectionClass(FlowSpeechApiService::class);
++        $this->service = $reflection->newInstanceWithoutConstructor();
++        $reflection->getProperty('httpClient')->setValue($this->service, new Client());
++        $reflection->getProperty('transportClient')->setValue($this->service, null);
++    }
++
++    public function testSlowHeadersAndBodyHaveOneHardTimeout(): void {
++        foreach (['slow-headers', 'slow-body'] as $path) {
++            $started = hrtime(true) / 1e9;
++            try {
++                $this->service->transport(['url' => $this->endpoint . '/' . $path, 'method' => 'GET',
++                    'headers' => [], 'body' => null, 'timeout' => 0.2, 'maxBytes' => 1024]);
++                self::fail('Slow transfer was accepted.');
++            } catch (FlowSpeechException $error) {
++                self::assertSame('network_error', $error->errorCode);
++                self::assertTrue($error->retryable);
++                self::assertNull($error->getPrevious());
++            }
++            $elapsed = hrtime(true) / 1e9 - $started;
++            self::assertGreaterThan(0.1, $elapsed);
++            self::assertLessThan(0.8, $elapsed, $path . ' must not wait for all headers/body chunks.');
++            fwrite(STDOUT, sprintf("%s: budget=0.2s elapsed=%.3fs\n", $path, $elapsed));
++        }
++        $response = $this->service->transport(['url' => $this->endpoint . '/ok', 'method' => 'GET',
++            'headers' => [], 'body' => null, 'timeout' => 1, 'maxBytes' => 1024]);
++        self::assertSame('{}', $response['body'], 'Transport remains usable after cancellation.');
++    }
++
++    public function testClientDeadlineRetainsRecoveryId(): void {
++        $requestId = '51382b81-9d36-49a5-994e-9b67686c6bd1';
++        $client = new FlowSpeechClient('fixture-only', $this->endpoint, 1, [$this->service, 'transport'],
++            ['max_retries' => 0, 'request_timeout' => 1]);
++        $started = hrtime(true) / 1e9;
++        try {
++            $client->createJob(['mode' => 'single', 'text' => 'Fixture', 'voiceName' => 'Kore'], $requestId);
++            self::fail('Slow submission was accepted.');
++        } catch (FlowSpeechException $error) {
++            self::assertSame('network_error', $error->errorCode);
++            self::assertSame($requestId, $error->requestId);
++            self::assertNull($error->jobId);
++        }
++        self::assertLessThan(1.6, hrtime(true) / 1e9 - $started);
++    }
++
++    public function testDrupalDefaultAndCustomStreamHandlerCannotOverrideCurlDeadline(): void {
++        new Settings([]);
++        foreach ([HandlerStack::create(), HandlerStack::create(new StreamHandler())] as $stack) {
++            $http = (new ClientFactory($stack))->fromOptions();
++            $reflection = new ReflectionClass(FlowSpeechApiService::class);
++            $service = $reflection->newInstanceWithoutConstructor();
++            $reflection->getProperty('httpClient')->setValue($service, $http);
++            $reflection->getProperty('transportClient')->setValue($service, null);
++            $started = hrtime(true) / 1e9;
++            try {
++                $service->transport(['url' => $this->endpoint . '/slow-headers', 'method' => 'GET',
++                    'headers' => [], 'body' => null, 'timeout' => 0.2, 'maxBytes' => 1024]);
++                self::fail('Site handler replaced the bounded cURL transport.');
++            } catch (FlowSpeechException $error) {
++                self::assertSame('network_error', $error->errorCode);
++            }
++            self::assertLessThan(0.8, hrtime(true) / 1e9 - $started);
++            self::assertSame($stack, $http->getConfig('handler'), 'The caller-owned stack must not be mutated.');
++        }
++    }
++}
+diff --git a/tests/FrameworkIntegrationTest.php b/tests/FrameworkIntegrationTest.php
+index a5d486e0025cac2eb1da8ccfd109dd8e9094f472..2a93bfaa8d63ebe210c84accd6a9e275cee009d3 100644
+--- a/tests/FrameworkIntegrationTest.php
++++ b/tests/FrameworkIntegrationTest.php
+@@ -52 +52 @@ final class FrameworkIntegrationTest extends TestCase
+-        $this->service = new FlowSpeechApiService($this->config, $this->http, $this->keys, $this->logger);
++        $this->service = new FlowSpeechApiService($this->config, $this->http, $this->keys, $this->logger, $this->http);
+@@ -83,0 +84,30 @@ final class FrameworkIntegrationTest extends TestCase
++    public function testInterruptedProductionResponseRetainsStatusAndCooldown(): void
++    {
++        $service = new FlowSpeechApiService($this->config, $this->http, $this->keys, $this->logger);
++        $requestId = '51382b81-9d36-49a5-994e-9b67686c6bd1';
++        foreach (['truncated', 'slow-body'] as $mode) {
++            foreach ([401, 429, 503] as $status) {
++                $this->control('api-' . $mode . '-' . $status);
++                $waits = [];
++                $client = new \Drupal\flowspeech\Api\FlowSpeechClient('fixture-only',
++                    $this->endpoints['api'], 120, [$service, 'transport'], [
++                        'max_retries' => 1, 'request_timeout' => 1,
++                        'sleep' => static function (float $seconds) use (&$waits): void { $waits[] = $seconds; },
++                    ]);
++                try {
++                    $client->createJob(['mode' => 'single', 'text' => 'Hello', 'voiceName' => 'Kore'], $requestId);
++                    self::fail('Interrupted response was accepted.');
++                } catch (FlowSpeechException $error) {
++                    self::assertSame($status, $error->getCode());
++                    self::assertSame($status !== 401, $error->retryable);
++                    self::assertSame(30.0, $error->retryAfterSeconds);
++                    self::assertSame($requestId, $error->requestId);
++                }
++                self::assertSame($status === 401 ? [] : [30.0], $waits);
++                $records = $this->control()['records'];
++                self::assertCount($status === 401 ? 1 : 2, $records);
++                if ($status !== 401) self::assertSame($records[0]['body'], $records[1]['body']);
++            }
++        }
++    }
++
+@@ -108,0 +139,39 @@ final class FrameworkIntegrationTest extends TestCase
++    public function testRealAiExceptionChainDoesNotReflectRemoteErrorsOrSignedUrls(): void
++    {
++        $provider = new FlowSpeechProvider('flowspeech', ['provider' => 'flowspeech'], $this->http,
++            $this->config, $this->logger, $this->createMock(CacheBackendInterface::class), $this->keys,
++            $this->createMock(ModuleHandlerInterface::class), new EventDispatcher(),
++            $this->createMock(FileSystemInterface::class));
++        (new ReflectionProperty($provider, 'client'))->setValue($provider, $this->service);
++        $provider->configuration = ['voice' => 'Kore'];
++        $previousMax = ini_set('zend.exception_string_param_max_len', '4096');
++        try {
++            foreach (['privacy-http-key', 'privacy-http-url', 'privacy-terminal', 'privacy-download'] as $scenario) {
++                $this->control($scenario);
++                try {
++                    $provider->textToSpeech('Hello', 'flowspeech-tts');
++                    self::fail('Expected a real framework exception.');
++                } catch (\Drupal\ai\Exception\AiBadRequestException $error) {
++                    $cause = $error->getPrevious();
++                    self::assertInstanceOf(FlowSpeechException::class, $cause);
++                    $terminal = $scenario === 'privacy-terminal';
++                    self::assertSame($terminal ? 'failed' : 'http_error', $cause->errorCode);
++                    self::assertSame($terminal ? 'FlowSpeech job failed.' :
++                        'FlowSpeech ' . ($scenario === 'privacy-download' ? 'download' : 'API') . ' returned HTTP 403.', $error->getMessage());
++                    self::assertNull($cause->traceId);
++                    self::assertNotNull($cause->requestId);
++                    if ($terminal || $scenario === 'privacy-download') self::assertNotNull($cause->jobId);
++                    foreach ([$error, $cause] as $part) {
++                        self::assertStringNotContainsString('fixture-only', (string) $part);
++                        self::assertStringNotContainsString('private.example.test', (string) $part);
++                        self::assertStringNotContainsString('signature=private-fixture', (string) $part);
++                        self::assertStringContainsString('Stack trace:', (string) $part);
++                    }
++                    self::assertNull($cause->getPrevious());
++                }
++            }
++        } finally {
++            ini_set('zend.exception_string_param_max_len', $previousMax);
++        }
++    }
++
+@@ -120,0 +190,31 @@ final class FrameworkIntegrationTest extends TestCase
++
++    public function testIsolatedProductionCurlRejectsBadTlsAndOversize(): void
++    {
++        $service = new FlowSpeechApiService($this->config, $this->http, $this->keys, $this->logger);
++        $request = ['method' => 'GET', 'headers' => ['Accept' => 'audio/wav'],
++            'body' => null, 'timeout' => 1, 'maxBytes' => 64];
++        foreach (['untrusted', 'wrongHost'] as $endpoint) {
++            try {
++                $service->transport($request + ['url' => $this->endpoints[$endpoint] . '/recording.wav']);
++                self::fail('Invalid TLS certificate was accepted.');
++            } catch (FlowSpeechException $error) {
++                self::assertSame('network_error', $error->errorCode);
++                self::assertNull($error->getPrevious());
++            }
++        }
++        $this->control('oversize');
++        try {
++            $service->transport($request + ['url' => $this->endpoints['storage'] . '/recording.wav']);
++            self::fail('The cURL sink accepted an oversized body.');
++        } catch (FlowSpeechException $error) {
++            self::assertSame('response_too_large', $error->errorCode);
++            self::assertFalse($error->retryable);
++        }
++        $this->control('success');
++        $response = $service->transport($request + ['url' => $this->endpoints['storage'] . '/recording.wav']);
++        self::assertSame(46, strlen($response['body']));
++        foreach ($this->control()['records'] as $record) {
++            self::assertArrayNotHasKey('authorization', $record['headers']);
++            self::assertArrayNotHasKey('cookie', $record['headers']);
++        }
++    }
+diff --git a/tests/adapter.php b/tests/adapter.php
+index 07b91203178e8b3cf111cf0f61efdb03eac5532e..9536f334f3a719405ccea03a4699596fc71b3fdb 100644
+--- a/tests/adapter.php
++++ b/tests/adapter.php
+@@ -28,0 +29 @@ namespace GuzzleHttp {
++            $options['sink']->write($response['body']);
+@@ -36,0 +38,2 @@ namespace GuzzleHttp {
++                        public function rewind() {}
++                        public function read($length) { return substr($this->body, 0, $length); }
+@@ -49,0 +53,22 @@ namespace GuzzleHttp\Exception { class TransferException extends \RuntimeExcepti
++namespace GuzzleHttp\Psr7 {
++    final class Utils {
++        public static function streamFor() {
++            return new class {
++                private string $body = '';
++                public function write($chunk) { $this->body .= $chunk; return strlen($chunk); }
++                public function getSize() { return strlen($this->body); }
++                public function __toString() { return $this->body; }
++                public function close() { $this->body = ''; }
++            };
++        }
++    }
++    final class FnStream {
++        public static function decorate($stream, $methods) {
++            return new class($stream, $methods) {
++                public function __construct(private $stream, private $methods) {}
++                public function write($chunk) { return ($this->methods['write'])($chunk); }
++                public function close() { $this->stream->close(); }
++            };
++        }
++    }
++}
+@@ -70 +95 @@ namespace {
+-    $service = new \Drupal\flowspeech\FlowSpeechApiService($config, $http, $keys, $logger);
++    $service = new \Drupal\flowspeech\FlowSpeechApiService($config, $http, $keys, $logger, $http);
+@@ -82 +107,2 @@ namespace {
+-        check($request['options']['stream'] === true && $request['options']['verify'] === true, 'Drupal bounded streaming with TLS');
++        check($request['options']['stream'] === false && $request['options']['verify'] === true &&
++            isset($request['options']['sink']), 'Drupal bounded cURL sink with TLS');
+@@ -86 +112 @@ namespace {
+-        check($config === ['handler' => 'fixture-handler'], 'Fresh client inherits only handler');
++        check($config === ['handler' => 'fixture-handler', 'proxy' => []], 'Explicit mock handler, no default credentials/proxy');
+diff --git a/tests/contract.php b/tests/contract.php
+index a8e78e912916e7f26ee0883b52af010b4b8c4f48..029e29bc9b08b322508ecbae71170aaa821e43d2 100644
+--- a/tests/contract.php
++++ b/tests/contract.php
+@@ -362,0 +363,97 @@ check($found['requestId'] === REQUEST_ID && $found['id'] === JOB_ID, 'Recovery l
++$privateUrl = 'https://private.example.test/audio.wav?signature=private-fixture';
++$unsafeTokens = ['fixture-only', 'prefix-fixture-only-suffix', $privateUrl, '', "bad\ncode",
++    "bad\0code", 'code.value', 'code:value', "\xc3\xa9", str_repeat('a', 129), 42, true, ['nested' => 'fixture-only']];
++foreach ($unsafeTokens as $unsafe) {
++    [$client, $state] = fake([response(['error' => ['code' => $unsafe, 'message' => $privateUrl,
++        'retryable' => false], 'traceId' => $unsafe], 403, ['Retry-After' => '17'])]);
++    try { $client->createJob(INPUT, REQUEST_ID); throw new RuntimeException('Expected HTTP error'); }
++    catch (FlowSpeechException $error) {
++        check($error->getMessage() === 'FlowSpeech API returned HTTP 403.', 'HTTP message is local and fixed');
++        check($error->errorCode === 'http_error' && $error->traceId === null, 'Unsafe metadata rejected');
++        check($error->getCode() === 403 && !$error->retryable && $error->retryAfterSeconds === 17.0, 'HTTP retry/status metadata retained');
++        check($error->requestId === REQUEST_ID && $error->jobId === null, 'HTTP error retains submitted request ID');
++        check($error->getPrevious() === null, 'No raw response exception chained');
++        check(!str_contains((string) $error, 'fixture-only') && !str_contains((string) $error, $privateUrl), 'Exception string contains no reflected credential or URL');
++    }
++    check(count($state->requests) === 1, 'Nonretryable reflection failure uses one request');
++}
++foreach (['TTS_FAILED', 'rate-limit_429', str_repeat('A', 128)] as $safe) {
++    [$client] = fake([response(['error' => ['code' => $safe, 'message' => 'fixture-only', 'retryable' => true],
++        'traceId' => $safe], 503, ['Retry-After' => '19'])], ['max_retries' => 0]);
++    $error = raises(static fn() => $client->createJob(INPUT, REQUEST_ID), $safe);
++    check($error->traceId === $safe && $error->retryable && $error->retryAfterSeconds === 19.0, 'Valid metadata is unchanged');
++    check($error->getMessage() === 'FlowSpeech API returned HTTP 503.', 'Even valid tokens do not permit arbitrary messages');
++}
++[$client] = fake([response(job('queued')), response(['error' => ['message' => 'fixture-only',
++    'code' => 'fixture-only'], 'traceId' => 'fixture-only'], 403)]);
++$created = $client->createJob(INPUT, REQUEST_ID);
++$error = raises(static fn() => $client->waitForJob($created), 'http_error');
++check($error->requestId === REQUEST_ID && $error->jobId === JOB_ID, 'Poll HTTP error retains both original IDs');
++
++foreach (['queued', 'running', 'merging', 'settling', 'success'] as $status) {
++    [$client] = fake([response(job($status, ['error' => null]))]);
++    $returned = $client->getJob(JOB_ID);
++    check(array_key_exists('error', $returned) && $returned['error'] === null, 'A null error remains null for ' . $status);
++    [$client] = fake([response(job($status))]);
++    check(!array_key_exists('error', $client->getJob(JOB_ID)), 'An absent error stays absent for ' . $status);
++}
++foreach (['failed', 'cancelled'] as $status) {
++    foreach (['fixture-only', $privateUrl, ['nested' => 'fixture-only']] as $unsafe) {
++        $raw = job($status, ['error' => ['code' => $unsafe, 'message' => $privateUrl, 'retryable' => true,
++            'traceId' => $unsafe, 'details' => 'fixture-only'], 'traceId' => $unsafe]);
++        [$client] = fake([response($raw)]);
++        $returned = $client->getJob(JOB_ID);
++        check($returned['error'] === ['code' => $status, 'message' => 'FlowSpeech job ' . $status . '.',
++            'retryable' => true, 'traceId' => null], 'Terminal error keeps safe DTO types and drops raw details');
++        check($returned['traceId'] === null && !str_contains(json_encode($returned), 'fixture-only') &&
++            !str_contains(json_encode($returned), $privateUrl), 'Returned terminal job is safe to render');
++        $error = raises(static fn() => $client->waitForJob($raw), $status);
++        check($error->requestId === REQUEST_ID && $error->jobId === JOB_ID, 'Terminal failure retains both IDs');
++        check(!str_contains((string) $error, 'fixture-only') && !str_contains((string) $error, $privateUrl), 'Terminal exception string is safe');
++    }
++    [$client] = fake([response(job($status, ['error' => ['code' => 'TTS_FAILED', 'message' => 'fixture-only', 'retryable' => false]]))]);
++    $returned = $client->getJob(JOB_ID);
++    check($returned['error'] === ['code' => 'TTS_FAILED', 'message' => 'FlowSpeech job ' . $status . '.', 'retryable' => false],
++        'Legal terminal code and false retryable survive');
++}
++$oldArgumentLength = ini_set('zend.exception_string_param_max_len', '4096');
++try {
++    [$client] = fake([response('', 403)], ['max_retries' => 0]);
++    $downloadJob = job('success', ['result' => array_replace(job()['result'], ['url' => $privateUrl])]);
++    $error = raises(static fn() => $client->downloadResult($downloadJob), 'http_error');
++    check(!str_contains((string) $error, $privateUrl), 'Verbose PHP exception formatting must not expose signed URL arguments');
++    check(str_contains((string) $error, 'Stack trace:') && str_contains((string) $error, 'FlowSpeechClient->send()'),
++        'Safe exception rendering retains stack locations and function names');
++} finally {
++    ini_set('zend.exception_string_param_max_len', $oldArgumentLength);
++}
++foreach ([true, false, null, 'true', 1, [], ['private' => 'fixture-only']] as $retryable) {
++    [$client] = fake([response(job('failed', ['error' => ['code' => 'TTS_FAILED', 'retryable' => $retryable]]))]);
++    $normalized = $client->getJob(JOB_ID);
++    check($normalized['error'] === ['code' => 'TTS_FAILED', 'message' => 'FlowSpeech job failed.',
++        'retryable' => $retryable === true], 'Terminal error always has safe string message and boolean retryable');
++}
++
++
++foreach ([401, 403, 404, 429, 503] as $status) {
++    $failure = FlowSpeechClient::transportFailure($status, ['Retry-After' => ['30']]);
++    [$client, $state] = fake([$failure, $failure], ['max_retries' => 1]);
++    $error = raises(static fn() => $client->createJob(INPUT, REQUEST_ID), 'network_error');
++    check($error->getCode() === $status, 'Incomplete response retains received HTTP status');
++    check($error->retryAfterSeconds === 30.0, 'Incomplete response retains server cooldown');
++    check($client->getRetryAfterSeconds() === 30.0, 'Client exposes the received cooldown');
++    check($error->requestId === REQUEST_ID, 'Incomplete response retains recovery ID');
++    $transient = $status === 429 || $status === 503;
++    check($error->retryable === $transient, 'Permanent HTTP failures must not retry');
++    check(count($state->requests) === ($transient ? 2 : 1), 'Bounded retries follow status');
++    check($state->waits === ($transient ? [30.0] : []), 'No early retry after body failure');
++    if ($transient) {
++        check($state->requests[0]['body'] === $state->requests[1]['body'], 'Retry preserves exact body');
++    }
++}
++$dated = FlowSpeechClient::transportFailure(429, ['retry-after' => gmdate('D, d M Y H:i:s', time() + 30) . ' GMT']);
++check($dated->retryAfterSeconds >= 29, 'Dated cooldown survives a failed body');
++[$client, $state] = fake([FlowSpeechClient::transportFailure(429, ['Retry-After' => '30'])], ['max_retries' => 1], 10);
++raises(static fn() => $client->createJob(INPUT, REQUEST_ID), 'deadline_exceeded');
++check(count($state->requests) === 1 && $state->waits === [], 'Deadline cannot shorten a received cooldown');
++
+diff --git a/tests/full-site/FixtureTransportTest.php b/tests/full-site/FixtureTransportTest.php
+index 90b056d2ef1c3107f9cb365a4964bb6fdcd757aa..8ae2030aa62824a728a28454ef2b2c5d3a4436a7 100644
+--- a/tests/full-site/FixtureTransportTest.php
++++ b/tests/full-site/FixtureTransportTest.php
+@@ -15,0 +16 @@ require_once __DIR__ . '/fixtures/flowspeech_ci/src/FixtureTransport.php';
++require_once __DIR__ . '/fixtures/flowspeech_ci/src/FlowspeechCiServiceProvider.php';
+@@ -18,0 +20,13 @@ final class FixtureTransportTest extends TestCase {
++    public function testSiteFixtureExplicitlyInjectsOnlyTheNewTransportSeam(): void {
++        $container = new \Drupal\Core\DependencyInjection\ContainerBuilder();
++        $provider = new \Drupal\flowspeech_ci\FlowspeechCiServiceProvider();
++        $definition = new \Symfony\Component\DependencyInjection\Definition(FlowSpeechApiService::class, [null, null, null, null]);
++        $container->setDefinition('flowspeech.api', $definition);
++        $provider->alter($container);
++        self::assertSame('http_client', (string) $definition->getArgument(4));
++        $legacy = new \Symfony\Component\DependencyInjection\Definition(stdClass::class, []);
++        $container->setDefinition('flowspeech.api', $legacy);
++        $provider->alter($container);
++        self::assertSame([], $legacy->getArguments(), 'Legacy constructors are not given an unknown argument.');
++    }
++
+@@ -28 +42 @@ final class FixtureTransportTest extends TestCase {
+-            $this->createMock(LoggerChannelFactoryInterface::class));
++            $this->createMock(LoggerChannelFactoryInterface::class), $http);
+diff --git a/tests/full-site/README.md b/tests/full-site/README.md
+index 046f54982391e378f22c17d6492d8a77530953d6..82d00d7a158edd5b7ac8c6c2bd86962b895b0ae5 100644
+--- a/tests/full-site/README.md
++++ b/tests/full-site/README.md
+@@ -17,0 +18,10 @@ set. `site_bootstrapped` separately records the validated post-install probe.
++The candidate Git export must also match the pinned 21 public file hashes in
++`module-manifest.json`. After each initial/persisted smoke phase, the runner
++hashes the actual installed `web/modules/custom/flowspeech` tree, rejecting
++missing, changed or extra files/directories, symlinks and hardlinks. Each JSON
++inventory is bound to the candidate commit, approved source commit, mode, nonce,
++Drupal version, site/module roots and phase. `installed_module_verified` and
++the overall success result remain false unless both inventories match the
++approved candidate/export. This adds no assertions to the existing 4/33/31
++bootstrap and smoke payloads.
++
+@@ -21 +31 @@ Two independent jobs install real minimal-profile sites with persistent SQLite:
+-- `upgrade`: install official 1.0.0 at commit
++- `upgrade`: install original official 1.0.0 at commit
+@@ -25,0 +36,9 @@ Two independent jobs install real minimal-profile sites with persistent SQLite:
++The runner requires that original legacy commit to be an actual ancestor of the
++executed candidate. Its complete tree matches the identity-cleaned GitHub
++equivalent `8c803c609d18a182285628cf0d3dfcc3ef5e3c43`; the cleaned commit is
++not substituted into official ancestry. The manifest's `approved_commit` stays
++`783abe7daf71141a5cc3a89c06b1477a7c802c15` as external reviewed GitHub content
++provenance, not an official ancestor claim. The executed candidate's own commit
++is recorded separately in every candidate, installed and result payload. All
++21 pinned files must still match that approved content exactly.
++
+@@ -59,2 +78,18 @@ Actions use verified commit pins and a read-only token without persisted Git
+-credentials. Only logs, runtime/commit/results metadata and Composer lock are
+-uploaded, not settings.php, SQLite databases or the installed tree.
++credentials. Only logs, runtime/commit/results metadata, Composer lock and the
++three explicit candidate/installed inventory JSON files are uploaded, not
++settings.php, SQLite databases or the installed tree. Inventories contain public
++relative paths, byte counts and SHA-256 values, not file contents.
++
++The original artifacts from commit
++`783abe7daf71141a5cc3a89c06b1477a7c802c15` prove executed 4/33/31 checks but
++do not contain installed-file inventories. This test-only change must pass a
++new reviewed CI run before that missing evidence gate can be closed; existing
++CI archives are not relabeled as having the new proof.
++
++The subsequent identity-cleaned GitHub candidate
++`0966292d81eb7ecb9935c08ec4c31fdd5ba90f81` passed source CI 40630559369 and
++fresh/upgrade full-site CI 40630559432 with independently accepted installed
++inventories. Those results apply only to that exact GitHub candidate. An
++official-history integration has a different executed commit and legacy
++ancestor and requires its own fresh/upgrade evidence; it does not inherit a
++test result by sharing the same 21 package files.
+diff --git a/tests/full-site/evidence.test.mjs b/tests/full-site/evidence.test.mjs
+index 86799cdb7cb1b08f129953c83bef7be8938864c8..544401ca3b9c01e27e148e5c41aff59a7c09e566 100644
+--- a/tests/full-site/evidence.test.mjs
++++ b/tests/full-site/evidence.test.mjs
+@@ -7 +7,4 @@ import { spawnSync } from 'node:child_process';
+-import { assertPhpEntrypoint, assertDrushVersion, readEvidence, readSmokeEvidence } from '../../scripts/full-site-evidence.mjs';
++import { createHash } from 'node:crypto';
++import { assertPhpEntrypoint, assertDrushVersion, readEvidence, readSmokeEvidence,
++  writeCandidateModuleManifest, readCandidateModuleManifest, writeInstalledModuleEvidence,
++  readInstalledModuleEvidence } from '../../scripts/full-site-evidence.mjs';
+@@ -103,0 +107,212 @@ test('full smoke requires both correct phases, including saved-form evidence', (
++
++const pinnedModule = JSON.parse(fs.readFileSync(path.join(root, 'tests/full-site/module-manifest.json'), 'utf8'));
++const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
++const clone = (value) => JSON.parse(JSON.stringify(value));
++function moduleFixture(mode = 'fresh') {
++  const directory = path.join(temp, 'module-' + ++sequence);
++  const web = path.join(directory, mode, 'site/web');
++  const exported = path.join(directory, 'export');
++  const installed = path.join(web, 'modules/custom/flowspeech');
++  const approved = { ...pinnedModule, files: pinnedModule.files.map(({ path: relative }) => {
++    const bytes = Buffer.from(relative === 'VERSION' ? '1.1.1\n' : 'synthetic-file:' + relative);
++    const file = path.join(exported, relative);
++    fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, bytes);
++    return { path: relative, bytes: bytes.length, sha256: sha256(bytes) };
++  }) };
++  fs.mkdirSync(path.dirname(installed), { recursive: true }); fs.cpSync(exported, installed, { recursive: true });
++  const identity = { mode, nonce: '11111111-1111-4111-8111-111111111111', commit: 'a'.repeat(40), root: web, drupal: '11.4.11' };
++  const candidateFile = path.join(directory, 'candidate.json');
++  const candidate = writeCandidateModuleManifest(candidateFile, exported, approved, identity);
++  return { directory, web, exported, installed, approved, identity, candidate, candidateFile,
++    initialFile: path.join(directory, 'installed-initial.json') };
++}
++
++test('approved 21-file fixture still matches current public module bytes', () => {
++  assert.equal(pinnedModule.commit, '783abe7daf71141a5cc3a89c06b1477a7c802c15');
++  assert.equal(pinnedModule.files.length, 21);
++  for (const file of pinnedModule.files) {
++    const bytes = fs.readFileSync(path.join(root, file.path));
++    assert.equal(bytes.length, file.bytes); assert.equal(sha256(bytes), file.sha256);
++  }
++  const attributes = fs.readFileSync(path.join(root, '.gitattributes'), 'utf8');
++  for (const excluded of ['/tests', '/scripts', '/.github']) assert.ok(attributes.includes(excluded + ' export-ignore'));
++});
++
++test('official runner uses the original legacy ancestor, never the cleaned-history substitute', () => {
++  const original = '91145d2be61188a723b248d956916a810a627ea5';
++  const cleaned = '8c803c609d18a182285628cf0d3dfcc3ef5e3c43';
++  const runner = fs.readFileSync(path.join(root, 'scripts/full-site.mjs'), 'utf8');
++  assert.ok(runner.includes("const legacy = '" + original + "';"));
++  assert.ok(!runner.includes(cleaned));
++  assert.ok(runner.includes("['merge-base', '--is-ancestor', legacy, commit]"));
++  assert.ok(runner.includes("installModule(mode === 'upgrade' ? legacy : commit, 'initial-module')"));
++  const ancestry = spawnSync('git', ['rev-list', 'HEAD'], { cwd: root, encoding: 'utf8' });
++  assert.ifError(ancestry.error); assert.equal(ancestry.status, 0);
++  const commits = ancestry.stdout.trim().split('\n');
++  assert.ok(commits.includes(original));
++  assert.ok(commits.includes('8390cac5e34a3ec4b03a2a94c0844192ca477f42'));
++  assert.ok(!commits.includes(cleaned));
++  const ancestor = spawnSync('git', ['merge-base', '--is-ancestor', original, 'HEAD'], { cwd: root });
++  assert.ifError(ancestor.error); assert.equal(ancestor.status, 0);
++  const tree = spawnSync('git', ['rev-parse', original + '^{tree}'], { cwd: root, encoding: 'utf8' });
++  assert.ifError(tree.error); assert.equal(tree.status, 0);
++  assert.equal(tree.stdout.trim(), 'e6bfe455670c78298e87ee58cffdcf2ad9dea4b0');
++});
++
++test('immutable external approval stays distinct from the executed official candidate identity', () => {
++  const pinnedBytes = fs.readFileSync(path.join(root, 'tests/full-site/module-manifest.json'));
++  assert.equal(sha256(pinnedBytes), '5b400698ca13e2ee692905888793dd12c7d8ff22026e3a0023f0119fa2b8ebed');
++  const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
++  assert.ifError(head.error); assert.equal(head.status, 0);
++  const executed = head.stdout.trim();
++  const ancestry = spawnSync('git', ['rev-list', 'HEAD'], { cwd: root, encoding: 'utf8' });
++  assert.ifError(ancestry.error); assert.equal(ancestry.status, 0);
++  assert.ok(!ancestry.stdout.trim().split('\n').includes(pinnedModule.commit));
++  assert.notEqual(executed, pinnedModule.commit);
++  const fixture = moduleFixture();
++  const identity = { ...fixture.identity, commit: executed };
++  const candidate = writeCandidateModuleManifest(fixture.candidateFile, fixture.exported, fixture.approved, identity);
++  assert.equal(candidate.commit, executed); assert.equal(candidate.approved_commit, pinnedModule.commit);
++  assert.deepEqual(readCandidateModuleManifest(fixture.candidateFile, identity, fixture.approved), candidate);
++  assert.throws(() => readCandidateModuleManifest(fixture.candidateFile, identity,
++    { ...fixture.approved, commit: executed }), /approved module manifest/);
++  fs.writeFileSync(fixture.candidateFile, JSON.stringify({ ...candidate, approved_commit: executed }));
++  assert.throws(() => readCandidateModuleManifest(fixture.candidateFile, identity, fixture.approved), /approved module manifest/);
++});
++
++test('fresh and post-upgrade inventories bind both actual installed phases to the exact approved export', () => {
++  for (const mode of ['fresh', 'upgrade']) {
++    const fixture = moduleFixture(mode);
++    for (const phase of ['initial', 'persisted']) {
++      const file = path.join(fixture.directory, phase + '.json');
++      const evidence = writeInstalledModuleEvidence(file, fixture.installed, fixture.identity, phase, fixture.candidate);
++      assert.equal(evidence.file_count, 21); assert.equal(evidence.phase, phase);
++      assert.equal(evidence.module_root, fixture.installed);
++      assert.equal(evidence.manifest_sha256, fixture.candidate.manifest_sha256);
++      assert.deepEqual(readInstalledModuleEvidence(file, fixture.identity, phase, fixture.candidate), evidence);
++      assert.deepEqual(readCandidateModuleManifest(fixture.candidateFile, fixture.identity, fixture.approved), fixture.candidate);
++    }
++  }
++});
++
++test('candidate proof rejects a changed export, missing file or wrong version before recording success', () => {
++  for (const mutation of ['changed', 'missing', 'version']) {
++    const fixture = moduleFixture();
++    if (mutation === 'changed') fs.writeFileSync(path.join(fixture.exported, 'README.md'), 'changed bytes');
++    if (mutation === 'missing') fs.rmSync(path.join(fixture.exported, 'README.md'));
++    if (mutation === 'version') fixture.approved.version = '9.9.9';
++    assert.throws(() => writeCandidateModuleManifest(path.join(fixture.directory, 'bad.json'), fixture.exported, fixture.approved, fixture.identity));
++    assert.equal(fs.existsSync(path.join(fixture.directory, 'bad.json')), false);
++  }
++});
++
++test('installed proof rejects missing and same-length changed bytes', () => {
++  for (const mutation of ['missing', 'changed']) {
++    const fixture = moduleFixture(); const file = path.join(fixture.installed, 'README.md');
++    if (mutation === 'missing') fs.rmSync(file);
++    else { const bytes = fs.readFileSync(file); bytes[0] ^= 1; fs.writeFileSync(file, bytes); }
++    assert.throws(() => writeInstalledModuleEvidence(fixture.initialFile, fixture.installed, fixture.identity, 'initial', fixture.candidate));
++    assert.equal(fs.existsSync(fixture.initialFile), false);
++  }
++});
++
++test('installed proof rejects extra secret files and unexpected empty directories', () => {
++  for (const extra of ['settings.php', '.env', 'unexpected-empty']) {
++    const fixture = moduleFixture(); const file = path.join(fixture.installed, extra);
++    if (extra === 'unexpected-empty') fs.mkdirSync(file); else fs.writeFileSync(file, 'synthetic-only');
++    assert.throws(() => writeInstalledModuleEvidence(fixture.initialFile, fixture.installed, fixture.identity, 'initial', fixture.candidate));
++  }
++});
++
++test('installed proof rejects file/root symlinks and hardlinks', () => {
++  for (const kind of ['file-symlink', 'root-symlink', 'hardlink']) {
++    const fixture = moduleFixture();
++    if (kind === 'root-symlink') { fs.rmSync(fixture.installed, { recursive: true }); fs.symlinkSync(fixture.exported, fixture.installed); }
++    else {
++      const file = path.join(fixture.installed, 'README.md'); fs.rmSync(file);
++      if (kind === 'file-symlink') fs.symlinkSync(path.join(fixture.exported, 'README.md'), file);
++      else fs.linkSync(path.join(fixture.exported, 'README.md'), file);
++    }
++    assert.throws(() => writeInstalledModuleEvidence(fixture.initialFile, fixture.installed, fixture.identity, 'initial', fixture.candidate));
++  }
++});
++
++test('manifest paths, hashes, counts and unknown fields fail closed', () => {
++  const fixture = moduleFixture();
++  for (const mutation of ['count', 'duplicate', 'traversal', 'absolute', 'backslash', 'private', 'hash', 'size', 'extra']) {
++    const approved = clone(fixture.approved);
++    if (mutation === 'count') approved.files.pop();
++    if (mutation === 'duplicate') approved.files[0] = approved.files[1];
++    if (mutation === 'traversal') approved.files[0].path = '../outside';
++    if (mutation === 'absolute') approved.files[0].path = '/outside';
++    if (mutation === 'backslash') approved.files[0].path = 'src\\outside.php';
++    if (mutation === 'private') approved.files[0].path = '.env';
++    if (mutation === 'hash') approved.files[0].sha256 = 'not-a-hash';
++    if (mutation === 'size') approved.files[0].bytes = -1;
++    if (mutation === 'extra') approved.files[0].contents = 'must never be emitted';
++    assert.throws(() => writeCandidateModuleManifest(path.join(fixture.directory, 'rejected.json'), fixture.exported, approved, fixture.identity));
++  }
++});
++
++test('candidate JSON cannot replace approved source hashes with self-consistent fabricated hashes', () => {
++  const fixture = moduleFixture(), forged = clone(fixture.candidate);
++  forged.files[0].sha256 = 'b'.repeat(64);
++  forged.manifest_sha256 = sha256(JSON.stringify([...forged.files].sort((a, b) => a.path < b.path ? -1 : 1)));
++  fs.writeFileSync(fixture.candidateFile, JSON.stringify(forged));
++  assert.throws(() => readCandidateModuleManifest(fixture.candidateFile, fixture.identity, fixture.approved), /approved module manifest/);
++});
++
++test('installed JSON rejects stale identity, phase, root, expected export and file-list data', () => {
++  const fixture = moduleFixture();
++  const good = writeInstalledModuleEvidence(fixture.initialFile, fixture.installed, fixture.identity, 'initial', fixture.candidate);
++  for (const key of ['mode', 'nonce', 'commit', 'root', 'drupal', 'phase', 'module_root', 'approved_commit',
++    'candidate_manifest_sha256', 'manifest_sha256', 'file_count', 'status']) {
++    fs.writeFileSync(fixture.initialFile, JSON.stringify({ ...good, [key]: 'stale' }));
++    assert.throws(() => readInstalledModuleEvidence(fixture.initialFile, fixture.identity, 'initial', fixture.candidate));
++  }
++  for (const bad of [{ ...good, files: [] }, { ...good, contents: 'not allowed' }, null]) {
++    fs.writeFileSync(fixture.initialFile, JSON.stringify(bad));
++    assert.throws(() => readInstalledModuleEvidence(fixture.initialFile, fixture.identity, 'initial', fixture.candidate));
++  }
++  for (const key of ['mode', 'nonce', 'commit', 'root', 'drupal', 'phase', 'manifest_sha256']) {
++    fs.writeFileSync(fixture.initialFile, JSON.stringify(good));
++    assert.throws(() => readInstalledModuleEvidence(fixture.initialFile, fixture.identity, 'initial', { ...fixture.candidate, [key]: 'stale' }));
++  }
++});
++
++test('zero exit or forged status without installed proof files cannot pass either phase', () => {
++  const fixture = moduleFixture();
++  assert.throws(() => readInstalledModuleEvidence(fixture.initialFile, fixture.identity, 'initial', fixture.candidate), /Missing or invalid/);
++  fs.writeFileSync(fixture.initialFile, '{"status":"passed"}');
++  assert.throws(() => readInstalledModuleEvidence(fixture.initialFile, fixture.identity, 'initial', fixture.candidate));
++  writeInstalledModuleEvidence(fixture.initialFile, fixture.installed, fixture.identity, 'initial', fixture.candidate);
++  assert.throws(() => readInstalledModuleEvidence(fixture.initialFile, fixture.identity, 'persisted', fixture.candidate));
++});
++
++test('a module mutation after initial smoke prevents persisted evidence without replacing initial proof', () => {
++  const fixture = moduleFixture();
++  writeInstalledModuleEvidence(fixture.initialFile, fixture.installed, fixture.identity, 'initial', fixture.candidate);
++  const before = fs.readFileSync(fixture.initialFile);
++  fs.appendFileSync(path.join(fixture.installed, 'README.md'), 'changed after initial');
++  const persisted = path.join(fixture.directory, 'persisted.json');
++  assert.throws(() => writeInstalledModuleEvidence(persisted, fixture.installed, fixture.identity, 'persisted', fixture.candidate));
++  assert.equal(fs.existsSync(persisted), false); assert.deepEqual(fs.readFileSync(fixture.initialFile), before);
++});
++
++test('inventory context rejects unknown fields, malformed identity and a different mode site root', () => {
++  const fixture = moduleFixture();
++  for (const bad of [{ ...fixture.identity, extra: 'not allowed' }, { ...fixture.identity, nonce: 'not-a-run-nonce' },
++    { ...fixture.identity, commit: 'not-a-commit' }, { ...fixture.identity, mode: 'upgrade' },
++    { ...fixture.identity, root: fixture.web + '/../web' }]) {
++    assert.throws(() => writeCandidateModuleManifest(path.join(fixture.directory, 'rejected-context.json'), fixture.exported, fixture.approved, bad), /identity/);
++  }
++});
++
++test('workflow uploads only explicit inventory JSONs, never an installed module or site tree', () => {
++  const workflow = fs.readFileSync(path.join(root, '.github/workflows/drupal-full-site.yml'), 'utf8');
++  for (const file of ['candidate-module-manifest.json', 'installed-module-initial.json', 'installed-module-persisted.json']) {
++    assert.ok(workflow.includes('.tools/full-site/${{ matrix.mode }}/' + file));
++  }
++  assert.ok(!workflow.includes('/site/web')); assert.ok(!workflow.includes('/site/\n'));
++  assert.ok(workflow.includes('/site/composer.lock'));
++});
+diff --git a/tests/full-site/fixtures/flowspeech_ci/src/FlowspeechCiServiceProvider.php b/tests/full-site/fixtures/flowspeech_ci/src/FlowspeechCiServiceProvider.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..eb70f40ac489965026df5c87e8a90379bfaba214
+--- /dev/null
++++ b/tests/full-site/fixtures/flowspeech_ci/src/FlowspeechCiServiceProvider.php
+@@ -0,0 +1,21 @@
++<?php
++declare(strict_types=1);
++
++namespace Drupal\flowspeech_ci;
++
++use Drupal\Core\DependencyInjection\ContainerBuilder;
++use Drupal\Core\DependencyInjection\ServiceProviderBase;
++use Symfony\Component\DependencyInjection\Reference;
++
++/** Installs the explicit offline transport only inside the disposable site. */
++final class FlowspeechCiServiceProvider extends ServiceProviderBase {
++    public function alter(ContainerBuilder $container): void {
++        if ($container->hasDefinition('flowspeech.api')) {
++            $definition = $container->getDefinition('flowspeech.api');
++            $constructor = (new \ReflectionClass($definition->getClass()))->getConstructor();
++            if ($constructor && $constructor->getNumberOfParameters() >= 5) {
++                $definition->setArgument(4, new Reference('http_client'));
++            }
++        }
++    }
++}
+diff --git a/tests/full-site/module-manifest.json b/tests/full-site/module-manifest.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..790433f359e7f4526ceabc3849f2d939d8a9f39c
+--- /dev/null
++++ b/tests/full-site/module-manifest.json
+@@ -0,0 +1,111 @@
++{
++  "commit": "783abe7daf71141a5cc3a89c06b1477a7c802c15",
++  "version": "1.1.1",
++  "files": [
++    {
++      "path": "CHANGELOG.md",
++      "bytes": 3116,
++      "sha256": "ec36c76f23057085f92f9f53ff501b6b23ea57860ecb37516328d7050d42a7af"
++    },
++    {
++      "path": "composer.json",
++      "bytes": 1250,
++      "sha256": "c6f4c7167988d6b89d7963a965f53879888d81a6f9e429ecdc119bcb73742a12"
++    },
++    {
++      "path": "config/install/flowspeech.settings.yml",
++      "bytes": 33,
++      "sha256": "2eec90819c71b7f1c893e0aa8704825422339d2b1b5d2dbe2172230a102263fa"
++    },
++    {
++      "path": "config/schema/flowspeech.schema.yml",
++      "bytes": 244,
++      "sha256": "e7d32def132d31785c59caa87c611b07cbb650844bed0d5096061181a8d8f335"
++    },
++    {
++      "path": "definitions/api_defaults.yml",
++      "bytes": 433,
++      "sha256": "57a92cbf973e73b419aeac712faba200fc4842f57533ee048d610b25a8b223ce"
++    },
++    {
++      "path": "flowspeech.info.yml",
++      "bytes": 243,
++      "sha256": "7d2ba79da4191112ce507a294690d391a316a7b435517c343792f9242b225361"
++    },
++    {
++      "path": "flowspeech.install",
++      "bytes": 761,
++      "sha256": "17506fa366e813d3f1613b702d499b95f1ad3e6193c3801b9a67f489a691ac5c"
++    },
++    {
++      "path": "flowspeech.links.menu.yml",
++      "bytes": 173,
++      "sha256": "b7ed995839115709058b5925de2a18e2d9cf938a43521a21275197ee6e4c8f86"
++    },
++    {
++      "path": "flowspeech.routing.yml",
++      "bytes": 240,
++      "sha256": "b42bccd7de2a802dff925c90c14e32d98a4bce6a7a3d93c80e798c19433b59a0"
++    },
++    {
++      "path": "flowspeech.services.yml",
++      "bytes": 194,
++      "sha256": "d1d80d7d635ebb34eb15dd33465968b23acb4bb9835882e2aebafcbbcb2a1f70"
++    },
++    {
++      "path": "LICENSE.txt",
++      "bytes": 18092,
++      "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
++    },
++    {
++      "path": "README.md",
++      "bytes": 8668,
++      "sha256": "36f19eea3381a2df4c3c7705b027bbc15505dcf8966f114dfae3f438ec097399"
++    },
++    {
++      "path": "SDK-LICENSE.txt",
++      "bytes": 1067,
++      "sha256": "328e9b8ab956b603650c09269c6c13076eae39642af21d4e8a7d55614349ca44"
++    },
++    {
++      "path": "src/Api/FlowSpeechClient.php",
++      "bytes": 27666,
++      "sha256": "4dcef8e5e7fc2dc1868054235e3111019ffdb5617313aadef09091c69726f15e"
++    },
++    {
++      "path": "src/Api/FlowSpeechException.php",
++      "bytes": 1620,
++      "sha256": "43a351482ae2aeab77c2d2102129bad8127583cd48b96bcdf7b66237ba82f17c"
++    },
++    {
++      "path": "src/Audio/WavEncoder.php",
++      "bytes": 1107,
++      "sha256": "b045ea002deba144d38c41eb06cbf883abe77df8420e0c6c663f2da4635d2c62"
++    },
++    {
++      "path": "src/Exception/FlowSpeechProviderException.php",
++      "bytes": 345,
++      "sha256": "14d610908baeffead87465b54a6713ee9807167aeb9a062cbd074c52042a3aa2"
++    },
++    {
++      "path": "src/FlowSpeechApiService.php",
++      "bytes": 6071,
++      "sha256": "9ac562901bddb1f0ad9fa9c6389f9fe4c4498440b463234b562e9bd335d74c4b"
++    },
++    {
++      "path": "src/Form/FlowSpeechSettingsForm.php",
++      "bytes": 1750,
++      "sha256": "f87b685e98ecb529aa125f1a61ba55af8d22a87087fccf70277638a8d1c078dd"
++    },
++    {
++      "path": "src/Plugin/AiProvider/FlowSpeechProvider.php",
++      "bytes": 6234,
++      "sha256": "12b11f8c72ccf15e960af7105adb14e4b0588be03d992a4f0250c2a6a22edebe"
++    },
++    {
++      "path": "VERSION",
++      "bytes": 6,
++      "sha256": "cc52f678848b814373757b460383bf61960e4943c203735adde0a350b3e50989"
++    }
++  ]
++}
+diff --git a/tests/provider.php b/tests/provider.php
+index c2781bcd52cba1648f656209dd2d1b1da397a6eb..d0926600cb90035c9a0b57f92e753d496a0bdc99 100644
+--- a/tests/provider.php
++++ b/tests/provider.php
+@@ -29,0 +30 @@ namespace {
++    require $sourceRoot . '/src/Exception/FlowSpeechProviderException.php';
+@@ -32,0 +34 @@ namespace {
++    $service->setApiKey('fixture-only');
+@@ -60,0 +63,37 @@ namespace {
++    $privateUrl = 'https://private.example.test/audio.wav?signature=private-fixture';
++    foreach (['fixture-only', $privateUrl] as $unsafe) {
++        \GuzzleHttp\Client::$queue = [response(['error' => [
++            'code' => $unsafe, 'message' => $unsafe, 'retryable' => false,
++        ], 'traceId' => $unsafe], 403)];
++        try { $provider->textToSpeech('Hello', 'flowspeech-tts'); throw new RuntimeException('Expected HTTP failure'); }
++        catch (\Drupal\ai\Exception\AiBadRequestException $error) {
++            $cause = $error->getPrevious();
++            check($cause instanceof \Drupal\flowspeech\Api\FlowSpeechException, 'Safe provider cause remains structured');
++            check($error->getMessage() === 'FlowSpeech API returned HTTP 403.', 'Provider HTTP message is local');
++            check($cause->errorCode === 'http_error' && $cause->traceId === null && $cause->getCode() === 403, 'Provider filters unsafe code and trace');
++            check($cause->requestId !== null && $cause->jobId === null, 'Provider preserves submit recovery ID');
++            check(!str_contains((string) $error, $unsafe), 'Provider exception string excludes reflected value');
++        }
++    }
++    \GuzzleHttp\Client::$queue = [static fn($request) => response(job('failed', [
++        'requestId' => $request['options']['headers']['Idempotency-Key'],
++        'error' => ['code' => 'fixture-only', 'message' => $privateUrl, 'retryable' => false],
++        'traceId' => 'fixture-only',
++    ]))];
++    try { $provider->textToSpeech('Hello', 'flowspeech-tts'); throw new RuntimeException('Expected terminal failure'); }
++    catch (\Drupal\ai\Exception\AiBadRequestException $error) {
++        check($error->getMessage() === 'FlowSpeech job failed.' && $error->getPrevious()->errorCode === 'failed', 'Provider terminal error is local');
++        check($error->getPrevious()->jobId === JOB_ID && $error->getPrevious()->requestId !== null, 'Terminal wrapper preserves recovery IDs');
++        check(!str_contains((string) $error, 'fixture-only') && !str_contains((string) $error, $privateUrl), 'Terminal exception chain is safe');
++    }
++    $previousMax = ini_set('zend.exception_string_param_max_len', '4096');
++    \GuzzleHttp\Client::$queue = [static fn($request) => response(job('success', [
++        'requestId' => $request['options']['headers']['Idempotency-Key'],
++        'result' => array_replace(job()['result'], ['url' => $privateUrl]),
++    ])), response(['error' => ['message' => $privateUrl]], 403)];
++    try { $provider->textToSpeech('Hello', 'flowspeech-tts'); throw new RuntimeException('Expected storage failure'); }
++    catch (\Drupal\ai\Exception\AiBadRequestException $error) {
++        check(!str_contains((string) $error, $privateUrl), 'Outer provider exception does not re-render private URL arguments');
++        check(str_contains((string) $error, 'Stack trace:') && str_contains((string) $error, 'FlowSpeechClient->send()'), 'Safe chain preserves useful frame names');
++        check($error->getPrevious()->jobId === JOB_ID, 'Download failure remains recoverable');
++    } finally { ini_set('zend.exception_string_param_max_len', $previousMax); }
+diff --git a/tests/requirements.php b/tests/requirements.php
+new file mode 100644
+index 0000000000000000000000000000000000000000..f68ae7631cecdde239a6fece568eb2e9280046ad
+--- /dev/null
++++ b/tests/requirements.php
+@@ -0,0 +1,21 @@
++<?php
++declare(strict_types=1);
++
++if (!function_exists('t')) {
++    function t($message) { return $message; }
++}
++$source = getenv('FLOWSPEECH_TEST_ROOT') ?: dirname(__DIR__);
++require $source . '/flowspeech.install';
++$checks = 0;
++foreach (['install', 'update', 'runtime'] as $phase) {
++    $requirement = flowspeech_requirements($phase)['flowspeech_curl'];
++    $severity = $requirement['severity'];
++    $severity = $severity instanceof BackedEnum ? $severity->value : $severity;
++    if ($severity !== (function_exists('curl_exec') ? 0 : 2)) throw new RuntimeException('Incorrect cURL requirement severity.');
++    $checks++;
++    $description = $requirement['description'];
++    if ($description instanceof \Drupal\Core\StringTranslation\TranslatableMarkup) $description = $description->getUntranslatedString();
++    if (!str_contains($description, 'curl_exec')) throw new RuntimeException('Missing installation instructions.');
++    $checks++;
++}
++echo "PASS: $checks Drupal installation/status requirement assertions; curl_exec=" . (function_exists('curl_exec') ? 'enabled' : 'disabled') . ".\n";

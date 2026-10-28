@@ -1,0 +1,67 @@
+name: Official History Candidate
+
+on:
+  push:
+    branches: ['codex/official-drupal-ci-1.1.1']
+
+permissions:
+  contents: read
+
+jobs:
+  full-site:
+    name: Official candidate / ${{ matrix.mode }}
+    if: github.event_name == 'push' && github.ref_name == 'codex/official-drupal-ci-1.1.1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [fresh, upgrade]
+    env:
+      FLOWSPEECH_API_KEY: ''
+      COMPOSER_AUTH: '{}'
+      COMPOSER_NO_INTERACTION: '1'
+      COMPOSER_HOME: ${{ github.workspace }}/.tools/official-composer-home
+      COMPOSER_CACHE_DIR: ${{ github.workspace }}/.tools/official-composer-cache
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@d52fc211a0436f8839a587b3b5b8efddab4744ea # v2
+        with:
+          php-version: '8.4'
+          extensions: gd, pdo_sqlite, sqlite3, curl, openssl, mbstring, intl, dom, xml, fileinfo
+          tools: composer:2.10.3
+          coverage: none
+      - name: Verify clean harness input guards
+        run: node --test tests/full-site/official-history-ci.test.mjs
+      - name: Reproduce exact original-history candidate without publishing ancestry
+        run: node scripts/official-history-ci.mjs "${{ matrix.mode }}"
+      - name: Verify actual candidate evidence guards and standalone contracts
+        working-directory: .tools/official-history-candidate
+        run: |
+          node --test tests/full-site/evidence.test.mjs
+          composer validate --strict --no-check-publish
+          php tests/provider.php
+          php tests/requirements.php
+      - name: Install and exercise the actual candidate
+        working-directory: .tools/official-history-candidate
+        run: node scripts/full-site.mjs "${{ matrix.mode }}"
+      - name: Preserve sanitized H/K bindings and executed evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: official-history-full-site-${{ matrix.mode }}
+          path: |
+            .tools/official-history-lineage.json
+            .tools/official-history-candidate/.tools/full-site/${{ matrix.mode }}/logs/
+            .tools/official-history-candidate/.tools/full-site/${{ matrix.mode }}/runtime.json
+            .tools/official-history-candidate/.tools/full-site/${{ matrix.mode }}/commit.json
+            .tools/official-history-candidate/.tools/full-site/${{ matrix.mode }}/result.json
+            .tools/official-history-candidate/.tools/full-site/${{ matrix.mode }}/candidate-module-manifest.json
+            .tools/official-history-candidate/.tools/full-site/${{ matrix.mode }}/installed-module-initial.json
+            .tools/official-history-candidate/.tools/full-site/${{ matrix.mode }}/installed-module-persisted.json
+            .tools/official-history-candidate/.tools/full-site/${{ matrix.mode }}/site/composer.lock
+          if-no-files-found: error
+          retention-days: 7
