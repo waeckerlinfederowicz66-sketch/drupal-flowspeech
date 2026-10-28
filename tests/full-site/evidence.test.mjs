@@ -4,7 +4,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { assertPhpEntrypoint, assertDrushVersion, readEvidence, readSmokeEvidence } from '../../scripts/full-site-evidence.mjs';
+import { createHash } from 'node:crypto';
+import { assertPhpEntrypoint, assertDrushVersion, readEvidence, readSmokeEvidence,
+  writeCandidateModuleManifest, readCandidateModuleManifest, writeInstalledModuleEvidence,
+  readInstalledModuleEvidence } from '../../scripts/full-site-evidence.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 fs.mkdirSync(path.join(root, '.tools'), { recursive: true });
@@ -100,4 +103,174 @@ test('full smoke requires both correct phases, including saved-form evidence', (
   assert.equal(readSmokeEvidence(directory, base).length, 2);
   save('initial', common);
   assert.throws(() => readSmokeEvidence(directory, base), /required executed checks/);
+});
+
+const pinnedModule = JSON.parse(fs.readFileSync(path.join(root, 'tests/full-site/module-manifest.json'), 'utf8'));
+const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+const clone = (value) => JSON.parse(JSON.stringify(value));
+function moduleFixture(mode = 'fresh') {
+  const directory = path.join(temp, 'module-' + ++sequence);
+  const web = path.join(directory, mode, 'site/web');
+  const exported = path.join(directory, 'export');
+  const installed = path.join(web, 'modules/custom/flowspeech');
+  const approved = { ...pinnedModule, files: pinnedModule.files.map(({ path: relative }) => {
+    const bytes = Buffer.from(relative === 'VERSION' ? '1.1.1\n' : 'synthetic-file:' + relative);
+    const file = path.join(exported, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, bytes);
+    return { path: relative, bytes: bytes.length, sha256: sha256(bytes) };
+  }) };
+  fs.mkdirSync(path.dirname(installed), { recursive: true }); fs.cpSync(exported, installed, { recursive: true });
+  const identity = { mode, nonce: '11111111-1111-4111-8111-111111111111', commit: 'a'.repeat(40), root: web, drupal: '11.4.11' };
+  const candidateFile = path.join(directory, 'candidate.json');
+  const candidate = writeCandidateModuleManifest(candidateFile, exported, approved, identity);
+  return { directory, web, exported, installed, approved, identity, candidate, candidateFile,
+    initialFile: path.join(directory, 'installed-initial.json') };
+}
+
+test('approved 21-file fixture still matches current public module bytes', () => {
+  assert.equal(pinnedModule.commit, '783abe7daf71141a5cc3a89c06b1477a7c802c15');
+  assert.equal(pinnedModule.files.length, 21);
+  for (const file of pinnedModule.files) {
+    const bytes = fs.readFileSync(path.join(root, file.path));
+    assert.equal(bytes.length, file.bytes); assert.equal(sha256(bytes), file.sha256);
+  }
+  const attributes = fs.readFileSync(path.join(root, '.gitattributes'), 'utf8');
+  for (const excluded of ['/tests', '/scripts', '/.github']) assert.ok(attributes.includes(excluded + ' export-ignore'));
+});
+
+test('fresh and post-upgrade inventories bind both actual installed phases to the exact approved export', () => {
+  for (const mode of ['fresh', 'upgrade']) {
+    const fixture = moduleFixture(mode);
+    for (const phase of ['initial', 'persisted']) {
+      const file = path.join(fixture.directory, phase + '.json');
+      const evidence = writeInstalledModuleEvidence(file, fixture.installed, fixture.identity, phase, fixture.candidate);
+      assert.equal(evidence.file_count, 21); assert.equal(evidence.phase, phase);
+      assert.equal(evidence.module_root, fixture.installed);
+      assert.equal(evidence.manifest_sha256, fixture.candidate.manifest_sha256);
+      assert.deepEqual(readInstalledModuleEvidence(file, fixture.identity, phase, fixture.candidate), evidence);
+      assert.deepEqual(readCandidateModuleManifest(fixture.candidateFile, fixture.identity, fixture.approved), fixture.candidate);
+    }
+  }
+});
+
+test('candidate proof rejects a changed export, missing file or wrong version before recording success', () => {
+  for (const mutation of ['changed', 'missing', 'version']) {
+    const fixture = moduleFixture();
+    if (mutation === 'changed') fs.writeFileSync(path.join(fixture.exported, 'README.md'), 'changed bytes');
+    if (mutation === 'missing') fs.rmSync(path.join(fixture.exported, 'README.md'));
+    if (mutation === 'version') fixture.approved.version = '9.9.9';
+    assert.throws(() => writeCandidateModuleManifest(path.join(fixture.directory, 'bad.json'), fixture.exported, fixture.approved, fixture.identity));
+    assert.equal(fs.existsSync(path.join(fixture.directory, 'bad.json')), false);
+  }
+});
+
+test('installed proof rejects missing and same-length changed bytes', () => {
+  for (const mutation of ['missing', 'changed']) {
+    const fixture = moduleFixture(); const file = path.join(fixture.installed, 'README.md');
+    if (mutation === 'missing') fs.rmSync(file);
+    else { const bytes = fs.readFileSync(file); bytes[0] ^= 1; fs.writeFileSync(file, bytes); }
+    assert.throws(() => writeInstalledModuleEvidence(fixture.initialFile, fixture.installed, fixture.identity, 'initial', fixture.candidate));
+    assert.equal(fs.existsSync(fixture.initialFile), false);
+  }
+});
+
+test('installed proof rejects extra secret files and unexpected empty directories', () => {
+  for (const extra of ['settings.php', '.env', 'unexpected-empty']) {
+    const fixture = moduleFixture(); const file = path.join(fixture.installed, extra);
+    if (extra === 'unexpected-empty') fs.mkdirSync(file); else fs.writeFileSync(file, 'synthetic-only');
+    assert.throws(() => writeInstalledModuleEvidence(fixture.initialFile, fixture.installed, fixture.identity, 'initial', fixture.candidate));
+  }
+});
+
+test('installed proof rejects file/root symlinks and hardlinks', () => {
+  for (const kind of ['file-symlink', 'root-symlink', 'hardlink']) {
+    const fixture = moduleFixture();
+    if (kind === 'root-symlink') { fs.rmSync(fixture.installed, { recursive: true }); fs.symlinkSync(fixture.exported, fixture.installed); }
+    else {
+      const file = path.join(fixture.installed, 'README.md'); fs.rmSync(file);
+      if (kind === 'file-symlink') fs.symlinkSync(path.join(fixture.exported, 'README.md'), file);
+      else fs.linkSync(path.join(fixture.exported, 'README.md'), file);
+    }
+    assert.throws(() => writeInstalledModuleEvidence(fixture.initialFile, fixture.installed, fixture.identity, 'initial', fixture.candidate));
+  }
+});
+
+test('manifest paths, hashes, counts and unknown fields fail closed', () => {
+  const fixture = moduleFixture();
+  for (const mutation of ['count', 'duplicate', 'traversal', 'absolute', 'backslash', 'private', 'hash', 'size', 'extra']) {
+    const approved = clone(fixture.approved);
+    if (mutation === 'count') approved.files.pop();
+    if (mutation === 'duplicate') approved.files[0] = approved.files[1];
+    if (mutation === 'traversal') approved.files[0].path = '../outside';
+    if (mutation === 'absolute') approved.files[0].path = '/outside';
+    if (mutation === 'backslash') approved.files[0].path = 'src\\outside.php';
+    if (mutation === 'private') approved.files[0].path = '.env';
+    if (mutation === 'hash') approved.files[0].sha256 = 'not-a-hash';
+    if (mutation === 'size') approved.files[0].bytes = -1;
+    if (mutation === 'extra') approved.files[0].contents = 'must never be emitted';
+    assert.throws(() => writeCandidateModuleManifest(path.join(fixture.directory, 'rejected.json'), fixture.exported, approved, fixture.identity));
+  }
+});
+
+test('candidate JSON cannot replace approved source hashes with self-consistent fabricated hashes', () => {
+  const fixture = moduleFixture(), forged = clone(fixture.candidate);
+  forged.files[0].sha256 = 'b'.repeat(64);
+  forged.manifest_sha256 = sha256(JSON.stringify([...forged.files].sort((a, b) => a.path < b.path ? -1 : 1)));
+  fs.writeFileSync(fixture.candidateFile, JSON.stringify(forged));
+  assert.throws(() => readCandidateModuleManifest(fixture.candidateFile, fixture.identity, fixture.approved), /approved module manifest/);
+});
+
+test('installed JSON rejects stale identity, phase, root, expected export and file-list data', () => {
+  const fixture = moduleFixture();
+  const good = writeInstalledModuleEvidence(fixture.initialFile, fixture.installed, fixture.identity, 'initial', fixture.candidate);
+  for (const key of ['mode', 'nonce', 'commit', 'root', 'drupal', 'phase', 'module_root', 'approved_commit',
+    'candidate_manifest_sha256', 'manifest_sha256', 'file_count', 'status']) {
+    fs.writeFileSync(fixture.initialFile, JSON.stringify({ ...good, [key]: 'stale' }));
+    assert.throws(() => readInstalledModuleEvidence(fixture.initialFile, fixture.identity, 'initial', fixture.candidate));
+  }
+  for (const bad of [{ ...good, files: [] }, { ...good, contents: 'not allowed' }, null]) {
+    fs.writeFileSync(fixture.initialFile, JSON.stringify(bad));
+    assert.throws(() => readInstalledModuleEvidence(fixture.initialFile, fixture.identity, 'initial', fixture.candidate));
+  }
+  for (const key of ['mode', 'nonce', 'commit', 'root', 'drupal', 'phase', 'manifest_sha256']) {
+    fs.writeFileSync(fixture.initialFile, JSON.stringify(good));
+    assert.throws(() => readInstalledModuleEvidence(fixture.initialFile, fixture.identity, 'initial', { ...fixture.candidate, [key]: 'stale' }));
+  }
+});
+
+test('zero exit or forged status without installed proof files cannot pass either phase', () => {
+  const fixture = moduleFixture();
+  assert.throws(() => readInstalledModuleEvidence(fixture.initialFile, fixture.identity, 'initial', fixture.candidate), /Missing or invalid/);
+  fs.writeFileSync(fixture.initialFile, '{"status":"passed"}');
+  assert.throws(() => readInstalledModuleEvidence(fixture.initialFile, fixture.identity, 'initial', fixture.candidate));
+  writeInstalledModuleEvidence(fixture.initialFile, fixture.installed, fixture.identity, 'initial', fixture.candidate);
+  assert.throws(() => readInstalledModuleEvidence(fixture.initialFile, fixture.identity, 'persisted', fixture.candidate));
+});
+
+test('a module mutation after initial smoke prevents persisted evidence without replacing initial proof', () => {
+  const fixture = moduleFixture();
+  writeInstalledModuleEvidence(fixture.initialFile, fixture.installed, fixture.identity, 'initial', fixture.candidate);
+  const before = fs.readFileSync(fixture.initialFile);
+  fs.appendFileSync(path.join(fixture.installed, 'README.md'), 'changed after initial');
+  const persisted = path.join(fixture.directory, 'persisted.json');
+  assert.throws(() => writeInstalledModuleEvidence(persisted, fixture.installed, fixture.identity, 'persisted', fixture.candidate));
+  assert.equal(fs.existsSync(persisted), false); assert.deepEqual(fs.readFileSync(fixture.initialFile), before);
+});
+
+test('inventory context rejects unknown fields, malformed identity and a different mode site root', () => {
+  const fixture = moduleFixture();
+  for (const bad of [{ ...fixture.identity, extra: 'not allowed' }, { ...fixture.identity, nonce: 'not-a-run-nonce' },
+    { ...fixture.identity, commit: 'not-a-commit' }, { ...fixture.identity, mode: 'upgrade' },
+    { ...fixture.identity, root: fixture.web + '/../web' }]) {
+    assert.throws(() => writeCandidateModuleManifest(path.join(fixture.directory, 'rejected-context.json'), fixture.exported, fixture.approved, bad), /identity/);
+  }
+});
+
+test('workflow uploads only explicit inventory JSONs, never an installed module or site tree', () => {
+  const workflow = fs.readFileSync(path.join(root, '.github/workflows/drupal-full-site.yml'), 'utf8');
+  for (const file of ['candidate-module-manifest.json', 'installed-module-initial.json', 'installed-module-persisted.json']) {
+    assert.ok(workflow.includes('.tools/full-site/${{ matrix.mode }}/' + file));
+  }
+  assert.ok(!workflow.includes('/site/web')); assert.ok(!workflow.includes('/site/\n'));
+  assert.ok(workflow.includes('/site/composer.lock'));
 });

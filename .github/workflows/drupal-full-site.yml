@@ -47,6 +47,9 @@ jobs:
             .tools/full-site/${{ matrix.mode }}/runtime.json
             .tools/full-site/${{ matrix.mode }}/commit.json
             .tools/full-site/${{ matrix.mode }}/result.json
+            .tools/full-site/${{ matrix.mode }}/candidate-module-manifest.json
+            .tools/full-site/${{ matrix.mode }}/installed-module-initial.json
+            .tools/full-site/${{ matrix.mode }}/installed-module-persisted.json
             .tools/full-site/${{ matrix.mode }}/site/composer.lock
           if-no-files-found: error
           retention-days: 7

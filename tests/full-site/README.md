@@ -15,6 +15,16 @@ current run nonce, commit, mode, site root and phase. Both smoke phases must
 contain the required checks before `full_site_executed` or `status: passed` is
 set. `site_bootstrapped` separately records the validated post-install probe.
 
+The candidate Git export must also match the pinned 21 public file hashes in
+`module-manifest.json`. After each initial/persisted smoke phase, the runner
+hashes the actual installed `web/modules/custom/flowspeech` tree, rejecting
+missing, changed or extra files/directories, symlinks and hardlinks. Each JSON
+inventory is bound to the candidate commit, approved source commit, mode, nonce,
+Drupal version, site/module roots and phase. `installed_module_verified` and
+the overall success result remain false unless both inventories match the
+approved candidate/export. This adds no assertions to the existing 4/33/31
+bootstrap and smoke payloads.
+
 Two independent jobs install real minimal-profile sites with persistent SQLite:
 
 - `fresh`: install the candidate from its actual Git archive.
@@ -56,8 +66,16 @@ The workflow runs when a `codex/drupal-*` branch is pushed, on pull requests,
 and by workflow_dispatch once registered in the default branch. A branch push
 is sufficient for first execution; no dispatch/default-branch write is needed.
 Actions use verified commit pins and a read-only token without persisted Git
-credentials. Only logs, runtime/commit/results metadata and Composer lock are
-uploaded, not settings.php, SQLite databases or the installed tree.
+credentials. Only logs, runtime/commit/results metadata, Composer lock and the
+three explicit candidate/installed inventory JSON files are uploaded, not
+settings.php, SQLite databases or the installed tree. Inventories contain public
+relative paths, byte counts and SHA-256 values, not file contents.
+
+The original artifacts from commit
+`783abe7daf71141a5cc3a89c06b1477a7c802c15` prove executed 4/33/31 checks but
+do not contain installed-file inventories. This test-only change must pass a
+new reviewed CI run before that missing evidence gate can be closed; existing
+CI archives are not relabeled as having the new proof.
 
 `FixtureTransportTest.php` can be checked locally with the existing real
 framework dependencies, but that alone does not pass this gate:

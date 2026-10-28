@@ -3,7 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { assertPhpEntrypoint, assertDrushVersion, readEvidence, readSmokeEvidence } from './full-site-evidence.mjs';
+import { assertPhpEntrypoint, assertDrushVersion, readEvidence, readSmokeEvidence,
+  writeCandidateModuleManifest, writeInstalledModuleEvidence } from './full-site-evidence.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const mode = process.argv[2];
@@ -38,7 +39,8 @@ const drush = (label, args, extraEnv = {}) => run(label, php,
   [assertPhpEntrypoint(path.join(site, 'vendor/drush/drush/drush.php')),
     '--root=' + web, '--uri=http://localhost', '--no-interaction', '--no-ansi', ...args], web, extraEnv);
 const resultFile = path.join(state, 'result.json');
-const report = { mode, status: 'pending', site_bootstrapped: false, full_site_executed: false };
+const report = { mode, status: 'pending', site_bootstrapped: false, full_site_executed: false,
+  installed_module_verified: false };
 try {
   const preflight = run('runtime-preflight', php, [path.join(root, 'tests/full-site/preflight.php')]);
   fs.writeFileSync(path.join(state, 'runtime.json'), preflight);
@@ -56,6 +58,14 @@ try {
   assertDrushVersion(drush('verify-drush-entrypoint', ['--version']), fixtureProject.require['drush/drush']);
   const identity = { mode, nonce: env.FLOWSPEECH_SITE_NONCE, commit, root: web,
     drupal: fixtureProject.require['drupal/core-recommended'] };
+  const approved = JSON.parse(fs.readFileSync(path.join(root, 'tests/full-site/module-manifest.json'), 'utf8'));
+  const candidateArchive = path.join(state, 'candidate-module.tar');
+  const candidateExport = path.join(state, 'candidate-export');
+  run('candidate-manifest-archive', 'git', ['archive', '--format=tar', '--output=' + candidateArchive, commit]);
+  fs.mkdirSync(candidateExport);
+  run('candidate-manifest-extract', 'tar', ['-xf', candidateArchive, '-C', candidateExport]);
+  const candidateManifest = writeCandidateModuleManifest(path.join(state, 'candidate-module-manifest.json'),
+    candidateExport, approved, identity);
   const custom = path.join(web, 'modules/custom');
   fs.mkdirSync(custom, { recursive: true });
   const modulePath = path.join(custom, 'flowspeech');
@@ -96,9 +106,14 @@ $settings['http_client_config']['headers']['Cookie'] = 'must-not-leak';
   }
   drush('cache-rebuild-before-smoke', ['cache:rebuild']);
   drush('initial-smoke', ['php:script', path.join(root, 'tests/full-site/smoke.php')], { FLOWSPEECH_SITE_PHASE: 'initial' });
+  report.installed_module = [writeInstalledModuleEvidence(path.join(state, 'installed-module-initial.json'),
+    modulePath, identity, 'initial', candidateManifest)];
   drush('cache-rebuild-after-form-save', ['cache:rebuild']);
   drush('persisted-smoke', ['php:script', path.join(root, 'tests/full-site/smoke.php')], { FLOWSPEECH_SITE_PHASE: 'persisted' });
+  report.installed_module.push(writeInstalledModuleEvidence(path.join(state, 'installed-module-persisted.json'),
+    modulePath, identity, 'persisted', candidateManifest));
   report.phases = readSmokeEvidence(logs, identity);
+  report.installed_module_verified = true;
   report.full_site_executed = true;
   report.status = 'passed';
 } catch (error) {

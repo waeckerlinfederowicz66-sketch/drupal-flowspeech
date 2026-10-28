@@ -1,0 +1,111 @@
+{
+  "commit": "783abe7daf71141a5cc3a89c06b1477a7c802c15",
+  "version": "1.1.1",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 3116,
+      "sha256": "ec36c76f23057085f92f9f53ff501b6b23ea57860ecb37516328d7050d42a7af"
+    },
+    {
+      "path": "composer.json",
+      "bytes": 1250,
+      "sha256": "c6f4c7167988d6b89d7963a965f53879888d81a6f9e429ecdc119bcb73742a12"
+    },
+    {
+      "path": "config/install/flowspeech.settings.yml",
+      "bytes": 33,
+      "sha256": "2eec90819c71b7f1c893e0aa8704825422339d2b1b5d2dbe2172230a102263fa"
+    },
+    {
+      "path": "config/schema/flowspeech.schema.yml",
+      "bytes": 244,
+      "sha256": "e7d32def132d31785c59caa87c611b07cbb650844bed0d5096061181a8d8f335"
+    },
+    {
+      "path": "definitions/api_defaults.yml",
+      "bytes": 433,
+      "sha256": "57a92cbf973e73b419aeac712faba200fc4842f57533ee048d610b25a8b223ce"
+    },
+    {
+      "path": "flowspeech.info.yml",
+      "bytes": 243,
+      "sha256": "7d2ba79da4191112ce507a294690d391a316a7b435517c343792f9242b225361"
+    },
+    {
+      "path": "flowspeech.install",
+      "bytes": 761,
+      "sha256": "17506fa366e813d3f1613b702d499b95f1ad3e6193c3801b9a67f489a691ac5c"
+    },
+    {
+      "path": "flowspeech.links.menu.yml",
+      "bytes": 173,
+      "sha256": "b7ed995839115709058b5925de2a18e2d9cf938a43521a21275197ee6e4c8f86"
+    },
+    {
+      "path": "flowspeech.routing.yml",
+      "bytes": 240,
+      "sha256": "b42bccd7de2a802dff925c90c14e32d98a4bce6a7a3d93c80e798c19433b59a0"
+    },
+    {
+      "path": "flowspeech.services.yml",
+      "bytes": 194,
+      "sha256": "d1d80d7d635ebb34eb15dd33465968b23acb4bb9835882e2aebafcbbcb2a1f70"
+    },
+    {
+      "path": "LICENSE.txt",
+      "bytes": 18092,
+      "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+    },
+    {
+      "path": "README.md",
+      "bytes": 8668,
+      "sha256": "36f19eea3381a2df4c3c7705b027bbc15505dcf8966f114dfae3f438ec097399"
+    },
+    {
+      "path": "SDK-LICENSE.txt",
+      "bytes": 1067,
+      "sha256": "328e9b8ab956b603650c09269c6c13076eae39642af21d4e8a7d55614349ca44"
+    },
+    {
+      "path": "src/Api/FlowSpeechClient.php",
+      "bytes": 27666,
+      "sha256": "4dcef8e5e7fc2dc1868054235e3111019ffdb5617313aadef09091c69726f15e"
+    },
+    {
+      "path": "src/Api/FlowSpeechException.php",
+      "bytes": 1620,
+      "sha256": "43a351482ae2aeab77c2d2102129bad8127583cd48b96bcdf7b66237ba82f17c"
+    },
+    {
+      "path": "src/Audio/WavEncoder.php",
+      "bytes": 1107,
+      "sha256": "b045ea002deba144d38c41eb06cbf883abe77df8420e0c6c663f2da4635d2c62"
+    },
+    {
+      "path": "src/Exception/FlowSpeechProviderException.php",
+      "bytes": 345,
+      "sha256": "14d610908baeffead87465b54a6713ee9807167aeb9a062cbd074c52042a3aa2"
+    },
+    {
+      "path": "src/FlowSpeechApiService.php",
+      "bytes": 6071,
+      "sha256": "9ac562901bddb1f0ad9fa9c6389f9fe4c4498440b463234b562e9bd335d74c4b"
+    },
+    {
+      "path": "src/Form/FlowSpeechSettingsForm.php",
+      "bytes": 1750,
+      "sha256": "f87b685e98ecb529aa125f1a61ba55af8d22a87087fccf70277638a8d1c078dd"
+    },
+    {
+      "path": "src/Plugin/AiProvider/FlowSpeechProvider.php",
+      "bytes": 6234,
+      "sha256": "12b11f8c72ccf15e960af7105adb14e4b0588be03d992a4f0250c2a6a22edebe"
+    },
+    {
+      "path": "VERSION",
+      "bytes": 6,
+      "sha256": "cc52f678848b814373757b460383bf61960e4943c203735adde0a350b3e50989"
+    }
+  ]
+}
